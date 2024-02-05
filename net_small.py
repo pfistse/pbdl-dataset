@@ -5,7 +5,7 @@ class NetworkSmall(nn.Module):
     def __init__(self):
         super(NetworkSmall, self).__init__()
         self.block_0 = nn.Sequential(
-            nn.Conv2d(4, 32, kernel_size=5, padding=2),
+            nn.Conv2d(6, 32, kernel_size=5, padding=2),
             nn.LeakyReLU()
         )
         self.block_1 = nn.Sequential(
@@ -14,7 +14,7 @@ class NetworkSmall(nn.Module):
             nn.Conv2d(32, 32, kernel_size=5, padding=2),
             nn.LeakyReLU()
         )
-        self.output = nn.Conv2d(32, 3, kernel_size=5, padding=2)
+        self.output = nn.Conv2d(32, 4, kernel_size=5, padding=2)
 
     def forward(self, x):
         x = self.block_0(x)

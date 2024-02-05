@@ -8,12 +8,12 @@ from net_small import NetworkSmall
 
 import matplotlib.pyplot as plt
 
-STEPS = 20
+STEPS = 10
 BATCH_SIZE = 3
 MODEL_PATH = "model/small"
 
-train_data = PBDLDataset("karman-2d-train", time_steps=STEPS, normalized=True)
-test_data = PBDLDataset("karman-2d-test", time_steps=STEPS, normalized=True)
+train_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalized=True)
+test_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalized=True)
 test_dataloader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False)
 
 net = NetworkSmall()
@@ -27,17 +27,20 @@ input = input.numpy()
 target = target.numpy()
 output = output.detach().numpy()
 
-plt.subplot(1, 3, 1)
-plt.imshow(np.flip(output[0, 2, ...], axis=-2), cmap="magma")
+plt.subplot(1, 4, 1)
+plt.imshow(np.flip(input[0, 1, ...], axis=-2), cmap="magma")
+plt.title("Input")
+
+plt.subplot(1, 4, 2)
+plt.imshow(np.flip(output[0, 1, ...], axis=-2), cmap="magma")
 plt.title("Output")
 
-plt.subplot(1, 3, 2)
-plt.imshow(np.flip(target[0, 2, ...], axis=-2), cmap="magma")
+plt.subplot(1, 4, 3)
+plt.imshow(np.flip(target[0, 1, ...], axis=-2), cmap="magma")
 plt.title("Target")
 
-
-diff = target[0, 2, ...] - output[0, 2, ...]
-plt.subplot(1, 3, 3)
+diff = target[0, 1, ...] - output[0, 1, ...]
+plt.subplot(1, 4, 4)
 plt.imshow(np.flip(diff, axis=-2), cmap="gray")
 plt.title("Difference")
 

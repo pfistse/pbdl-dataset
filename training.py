@@ -4,16 +4,15 @@ from dataset import PBDLDataset
 from torch.utils.data import DataLoader
 import net_small
 
-STEPS = 20
+STEPS = 10
 
 BATCH_SIZE = 3
 LR = 0.0001
-EPOCHS = 5
+EPOCHS = 8
 
 MODEL_PATH = "model/small"
 
-train_data = PBDLDataset("karman-2d-train", time_steps=STEPS, normalized=True)
-train_data.normalize()
+train_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalized=True)
 
 train_dataloader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
 
