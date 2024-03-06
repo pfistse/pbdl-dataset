@@ -12,8 +12,7 @@ STEPS = 10
 BATCH_SIZE = 3
 MODEL_PATH = "model/small"
 
-train_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalized=True)
-test_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalized=True)
+test_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalize=True)
 test_dataloader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False)
 
 net = NetworkSmall()
