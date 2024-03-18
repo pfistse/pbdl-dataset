@@ -7,9 +7,10 @@ A `PBDLDataset` instance must be initialized with the dataset name and the time 
 
 There are optional arguments `start_offset`, `end_offset` and `step_size` with which you can specify which frames of the simulation should be used. The argument `simulations` allows to choose only specific simulations for the dataset.
 
-The dataset class is usually passed to a DataLoader, which creates batches from the input-target array.
+The dataset is then passed to the PBDLDataLoader, which creates batches from the input-target array. If required, the batch sampler can be used to ensure that the constants of all samples in a batch match.
 
-    loader = DataLoader(data, batch_size=5, shuffle=True)
+    batch_sampler = PBDLConstantBatchSampler(dataset, BATCH_SIZE, group_constants=[0]) # sampler is optional
+    dataloader = PBDLDataLoader(dataset, batch_sampler=batch_sampler)
 
 # Local Datasets
 If you want to load your own data set, you can add a `datasets.json` file with the following structure in the same directory:

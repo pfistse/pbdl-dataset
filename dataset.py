@@ -3,9 +3,12 @@ import json
 import urllib.request
 import pickle
 
+import numpy as np
+
 import torch
 from torch.utils.data import Dataset
-import numpy as np
+
+from phi.torch.flow import *
 
 from itertools import groupby
 import sys
@@ -14,6 +17,9 @@ DATASETS_JSON_PATH = "datasets_global.json"
 LOCAL_DATASETS_JSON_PATH = "datasets.json"
 DATASET_DIR = "datasets/"
 DATASET_EXT = ".npz"
+
+# phi flow
+PHIFLOW_SPATIAL_DIM = ["x", "y", "z"]
 
 # load metadata
 try:
@@ -42,6 +48,7 @@ class PBDLDataset(Dataset):
         start_offset=0,
         end_offset=0,
         step_size=1,
+        time_stepping=False,
     ):
 
         self.dataset = dataset
@@ -49,6 +56,7 @@ class PBDLDataset(Dataset):
         self.start_offset = start_offset
         self.end_offset = end_offset
         self.step_size = step_size
+        self.time_stepping = time_stepping
 
         if dataset in local_metadata.keys():
             self.fields = local_metadata[dataset]["fields"]
@@ -80,9 +88,9 @@ class PBDLDataset(Dataset):
         self.data = loaded["data"]
         self.constants = loaded["constants"]
 
-        if len(self.data.shape) < 5:
+        if len(self.data.shape) < 4:
             raise ValueError(
-                f"Data must have shape (sim, frames, fields, dim, dim [, ...])."
+                f"Data must have shape (sim, frames, fields, dim [, ...])."
             )
 
         if len(self.constants.shape) != 2:
@@ -102,6 +110,8 @@ class PBDLDataset(Dataset):
         self.num_spatial_dim = (
             self.data.ndim - 3
         )  # subtract sim, step, and field dimension
+
+        self.num_const = self.constants.shape[1]
 
         self.samples_per_sim = (
             self.num_frames - self.time_steps - self.start_offset - self.end_offset
@@ -141,7 +151,10 @@ class PBDLDataset(Dataset):
             constants_mean = np.mean(self.constants, axis=0, keepdims=True)
             constants_std = np.std(self.constants, axis=0, keepdims=True)
 
-            self.constants = (self.constants - constants_mean) / constants_std
+            if abs(constants_std) < 10e-10:
+                self.constants = np.zeros_like(self.constants)
+            else:
+                self.constants = (self.constants - constants_mean) / constants_std
 
     def __len__(self):
         return self.num_sims * self.samples_per_sim
@@ -152,21 +165,38 @@ class PBDLDataset(Dataset):
         # create input-target pairs with interval time_steps from simulation steps
         sim_idx = idx // self.samples_per_sim
 
-        input_idx = self.start_offset + (idx % self.samples_per_sim)
+        input_idx = (
+            self.start_offset + (idx % self.samples_per_sim) * self.step_size
+        )
         target_idx = input_idx + self.time_steps
 
         input = self.data[sim_idx][input_idx]
-        target = self.data[sim_idx][target_idx]
 
-        # additional layers for constants
-        input_ext = [
-            np.full_like(input[0], self.constants[sim_idx][constant])
-            for constant in range(self.constants.shape[1])
-        ]
+        if self.time_stepping:
+            target = self.data[sim_idx][input_idx + 1 : target_idx + 1]
+        else:
+            target = self.data[sim_idx][target_idx]
 
-        return (
-            torch.tensor(np.concatenate((input, input_ext), axis=0)),
-            torch.tensor(target),
+        return (input, tuple(self.constants[sim_idx]), target)
+
+    def to_phiflow(self, data):
+        """Convert network input to solver input. Constant layers are ignored."""
+        spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.num_spatial_dim])
+        return tensor(
+            data[:, 0:1, ...],
+            batch("b"),
+            instance("time"),
+            spatial(spatial_dim),
         )
 
-# dataset = PBDLDataset("incompressible-wake-flow-tiny", time_steps=20, normalize=True,step_size=2,end_offset=1)
+    def from_phiflow(self, data):
+        """Convert solver output to a network output-like format."""
+        spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.num_spatial_dim])
+        return data.native(["b", "time", spatial_dim])
+
+    def cat_constants(self, data, like):
+        """Concatenate constants from `like` to `data`. Useful for mapping network outputs to network inputs of the next iteration."""
+        return torch.cat(
+            [data, like[:, self.num_fields : self.num_fields + self.num_const, ...]],
+            axis=1,
+        )  # dim 0 is batch dimension

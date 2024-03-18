@@ -1,0 +1,26 @@
+{
+    "incompressible-wake-flow-tiny": {
+        "endpoint": "https://syncandshare.lrz.de/dl/fiWNqKBMfpgZCPSKqPRLTe/incompressible_wake_flow_tiny.npz",
+        "fields": "VVd",
+        "channels" : ["velocity x", "velocity y", "density"],
+        "constant_desc" : ["mach number"]
+    },
+    "incompressible-wake-flow-full": {
+        "endpoint": "https://syncandshare.lrz.de/dl/fiCQyZP2stwgGZ5vyinxhP/incompressible_wake_flow_full.npz",
+        "fields": "VVd",
+        "field_desc" : ["velocity x", "velocity y", "density"],
+        "constant_desc" : ["mach number"]
+    },
+    "transonic-cylinder-flow-tiny": {
+        "endpoint": "https://syncandshare.lrz.de/dl/fi545yHw4BrZnenB2SKseg/transonic_cylinder_flow_tiny.npz",
+        "fields": "VVdp",
+        "field_desc" : ["velocity x", "velocity y", "density", "pressure"],
+        "constant_desc" : ["mach number"]
+    },
+    "transonic-cylinder-flow-full": {
+        "endpoint": "https://syncandshare.lrz.de/dl/fiLNx5Vde3rEqYA48UTme/transonic_cylinder_flow_full.npz",
+        "fields": "VVdp",
+        "channels" : ["velocity x", "velocity y", "density", "pressure"],
+        "constant_desc" : ["mach number"]
+    }
+}
