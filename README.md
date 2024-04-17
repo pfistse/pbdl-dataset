@@ -27,3 +27,6 @@ If you want to load your own data set, you can add a `datasets.json` file with t
 - `fields` contains information about the type of physical field in the form
 of a string, e.g. `VVdp` (velocity x, velocity y, density, pressure). Consecutive identical letters indicate that a physical field consists of several indices (vector field). This information affects how normalization is applied: For vector fields, the vector norm is applied first before the standard deviation is calculated.
 - `field_desc`/`constant_desc` ist meant to be a description for the fields/constants.
+
+# Partitioned Datasets
+If the JSON attribute `endpoint` (for global dataset metadata) or `path`(for local dataset metadata) specifies a path (no `.npz` extension), the dataset is interpreted as a partitioned dataset. This means that simulations are saved in separate .npz files and can be downloaded separately (via the argument `simulations` of `PBDLDataset`).

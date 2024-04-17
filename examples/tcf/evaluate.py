@@ -1,13 +1,15 @@
 import sys
-sys.path.append('../../')
+
+sys.path.append("../../")
 
 import numpy as np
 
 import torch
 from dataset import PBDLDataset
+from dataloader import PBDLDataLoader
 from torch.utils.data import DataLoader
 
-from examples.cf.net_small import NetworkSmall
+from examples.tcf.net_small import NetworkSmall
 
 import matplotlib.pyplot as plt
 
@@ -15,8 +17,10 @@ STEPS = 10
 BATCH_SIZE = 3
 MODEL_PATH = "model/small"
 
-test_data = PBDLDataset("transonic-cylinder-flow-tiny", time_steps=STEPS, normalize=True)
-test_dataloader = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False)
+test_data = PBDLDataset(
+    "transonic-cylinder-flow-tiny", time_steps=STEPS, normalize=True
+)
+test_dataloader = PBDLDataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False)
 
 net = NetworkSmall()
 net.load_state_dict(torch.load(MODEL_PATH))

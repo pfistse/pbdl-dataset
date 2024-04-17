@@ -44,7 +44,7 @@ class PBDLDataset(Dataset):
         dataset,
         time_steps,
         normalize=True,
-        simulations=[],
+        simulations=[],  # if empty, all simulations are loaded
         start_offset=0,
         end_offset=0,
         step_size=1,
@@ -58,53 +58,161 @@ class PBDLDataset(Dataset):
         self.step_size = step_size
         self.time_stepping = time_stepping
 
+        # TODO retrieve number of simulations from endpoint
+
+        # local dataset
         if dataset in local_metadata.keys():
             self.fields = local_metadata[dataset]["fields"]
             self.field_desc = local_metadata[dataset]["field_desc"]
             self.constant_desc = local_metadata[dataset]["constant_desc"]
 
             path = local_metadata[dataset]["path"]
+            partitioned = not path.endswith(DATASET_EXT)
 
+            if partitioned:
+                if not simulations:
+                    sim_files = [
+                        (path + "/" + f)
+                        for f in os.listdir(path)
+                        if os.path.isfile(path + "/" + f)
+                        and f.startswith(self.dataset + "-")
+                    ]
+
+                    if not sim_files:
+                        raise FileNotFoundError(
+                            f"No simulation files found for dataset '{self.dataset}'."
+                        )
+                else:
+                    sim_files = []
+                    for i in simulations:
+                        sim_file = (
+                            path + "/" + self.dataset + "-" + str(i) + DATASET_EXT
+                        )
+                        if os.path.isfile(sim_file):
+                            sim_files.append(sim_file)
+                        else:
+                            raise ValueError(
+                                f"Simulation {i} not found in local dataset '{self.dataset}'."
+                            )
+
+        # global dataset
         elif dataset in metadata.keys():
             self.fields = metadata[dataset]["fields"]
             self.field_desc = metadata[dataset]["field_desc"]
             self.constant_desc = metadata[dataset]["constant_desc"]
 
-            # downloading dataset from endpoint if not buffered
-            path = DATASET_DIR + self.dataset + DATASET_EXT
-            if not os.path.isfile(path):
-                print(f"Downloading '{dataset}'...")
+            partitioned = not metadata[dataset]["endpoint"].endswith(DATASET_EXT)
 
-                os.makedirs(os.path.dirname(DATASET_DIR), exist_ok=True)
-                urllib.request.urlretrieve(metadata[dataset]["endpoint"], path)
+            if partitioned:
+
+                os.makedirs(
+                    os.path.dirname(DATASET_DIR + self.dataset + "/"), exist_ok=True
+                )
+
+                sim_files = []
+
+                if not simulations:
+                    raise ValueError(
+                        "For partitioned global datasets, an explicit specification of the simulations is required."  # TODO read directory
+                    )
+
+                # check if all necessary simulations are cached
+                for i in simulations:
+                    sim_file = (
+                        DATASET_DIR
+                        + self.dataset
+                        + "/"
+                        + self.dataset
+                        + "-"
+                        + str(i)
+                        + DATASET_EXT
+                    )
+                    sim_files.append(sim_file)
+
+                    if not os.path.isfile(sim_file):
+                        print(f"Simulation {i} not cached. Downloading...")
+
+                        sim_file_endpoint = (
+                            metadata[dataset]["endpoint"]
+                            + "/"
+                            + self.dataset
+                            + "-"
+                            + str(i)
+                            + DATASET_EXT
+                        )
+
+                        urllib.request.urlretrieve(sim_file_endpoint, sim_file)
+
+                # try to download normalization data
+                try:
+                    urllib.request.urlretrieve(
+                        metadata[dataset]["endpoint"] + "/norm_data" + DATASET_EXT,
+                        DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT,
+                    )
+                except urllib.error.URLError:
+                    print("No precomputed normalization data found.")
+
+                path = DATASET_DIR + self.dataset
+
+            elif not partitioned:
+
+                path = DATASET_DIR + self.dataset + DATASET_EXT
+
+                if not os.path.isfile(DATASET_DIR + self.dataset + DATASET_EXT):
+                    print(f"Single-file dataset '{dataset}' not cached. Downloading...")
+
+                    os.makedirs(os.path.dirname(DATASET_DIR), exist_ok=True)
+
+                    urllib.request.urlretrieve(metadata[dataset]["endpoint"], path)
+
         else:
-            suggestions = ", ".join(metadata.keys())
+            suggestions = ", ".join((metadata | local_metadata).keys())
             raise ValueError(
                 f"Dataset '{dataset}' not found, datasets available are: {suggestions}."
             )
 
         print(f"Loading '{dataset}'...")
-        loaded = np.load(path)
-        self.data = loaded["data"]
-        self.constants = loaded["constants"]
+
+        if partitioned:
+
+            loaded_sims = [np.load(sim_file) for sim_file in sim_files]
+
+            try:
+                self.data = np.stack([sim["data"] for sim in loaded_sims], axis=0)
+            except Exception as e:
+                print(e)
+                raise Exception(
+                    "Data in all simulation files must have a homogeneous shape."
+                )
+
+            try:
+                self.constants = np.stack(
+                    [sim["constants"] for sim in loaded_sims], axis=0
+                )
+            except Exception as e:
+                raise Exception(
+                    "Constant data in all simulation files must have a homogeneous shape."
+                )
+
+        else:
+            loaded_sims = np.load(path)
+            self.data = loaded_sims["data"]
+            self.constants = loaded_sims["constants"]
+
+            if simulations:
+                self.data = self.data[simulations, ...]
 
         if len(self.data.shape) < 4:
-            raise ValueError(
-                f"Data must have shape (sim, frames, fields, dim [, ...])."
-            )
+            raise ValueError("Data must have shape (sim, frames, fields, dim [, ...]).")
 
         if len(self.constants.shape) != 2:
             raise ValueError(f"Constant data must have shape (sim, n).")
 
         if len(self.fields) != self.data.shape[2]:
+            print(self.data.shape)
             raise ValueError(
                 f"Inconsistent number of fields between metadata ({len(self.fields) }) and dataset ({ self.data.shape[2]})."
             )
-
-        if simulations:
-            self.data = self.data[simulations, ...]
-
-        # print(f"data shape {self.data.shape}, constants shape {self.constants.shape}")
 
         self.num_sims, self.num_frames, self.num_fields, *_ = self.data.shape
         self.num_spatial_dim = (
@@ -122,39 +230,79 @@ class PBDLDataset(Dataset):
         )
 
         if normalize:
+
+            norm_data_file_path = (
+                DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT
+            )
             field_groups = ["".join(g) for _, g in groupby(self.fields)]
 
-            groups_std = []
-            idx = 0
+            if os.path.isfile(norm_data_file_path):
 
-            # normalize field groups
-            for group in field_groups:
-                group_field = self.data[:, :, idx : (idx + len(group)), ...]
+                loaded_norm_data = np.load(norm_data_file_path)
+                groups_std = loaded_norm_data["groups_std"]
+                const_mean = loaded_norm_data["const_mean"]
+                const_std = loaded_norm_data["const_std"]
 
-                # vector norm
-                group_norm = np.linalg.norm(group_field, axis=2, keepdims=True)
-
-                # axes over which to compute the standard deviation (all axes except fields)
-                axes = (0, 1) + tuple(range(3, 3 + self.num_spatial_dim))
-                group_std = np.std(group_norm, axis=axes, keepdims=True)
-
-                groups_std.append(
-                    np.broadcast_to(
-                        group_std, (1, 1, len(group)) + (1,) * self.num_spatial_dim
+                if groups_std.shape[2] != self.data.shape[2]:
+                    raise ValueError(
+                        "Inconsistent number of fields between normalization data and simulation data."
                     )
-                )
-                idx += len(group)
 
-            self.data /= np.concatenate(groups_std, axis=2)
+                if const_mean.shape[1] != self.constants.shape[1]:
+                    raise ValueError(
+                        "Mean data of constants does not match shape of constants."
+                    )
 
-            # normalize constants
-            constants_mean = np.mean(self.constants, axis=0, keepdims=True)
-            constants_std = np.std(self.constants, axis=0, keepdims=True)
+                if const_std.shape[1] != self.constants.shape[1]:
+                    raise ValueError(
+                        "Std data of constants does not match shape of constants."
+                    )
 
-            if abs(constants_std) < 10e-10:
+            else:
+
+                print("No precalculated normalization data found. Calculating data...")
+
+                groups_std = []
+                idx = 0
+
+                # calculate normalization constants by field
+                for group in field_groups:
+                    group_field = self.data[:, :, idx : (idx + len(group)), ...]
+
+                    # vector norm
+                    group_norm = np.linalg.norm(group_field, axis=2, keepdims=True)
+
+                    # axes over which to compute the standard deviation (all axes except fields)
+                    axes = (0, 1) + tuple(range(3, 3 + self.num_spatial_dim))
+                    group_std = np.std(group_norm, axis=axes, keepdims=True)
+
+                    groups_std.append(
+                        np.broadcast_to(
+                            group_std, (1, 1, len(group)) + (1,) * self.num_spatial_dim
+                        )
+                    )
+                    idx += len(group)
+
+                groups_std = np.concatenate(groups_std, axis=2)
+                const_mean = np.mean(self.constants, axis=0, keepdims=True)
+                const_std = np.std(self.constants, axis=0, keepdims=True)
+
+            # np.savez(
+            #     DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT,
+            #     **{
+            #         "groups_std": groups_std,
+            #         "const_mean": const_mean,
+            #         "const_std": const_std,
+            #     },
+            # )
+
+            # normalization
+            self.data /= groups_std
+
+            if abs(const_std) < 10e-10:
                 self.constants = np.zeros_like(self.constants)
             else:
-                self.constants = (self.constants - constants_mean) / constants_std
+                self.constants = (self.constants - const_mean) / const_std
 
     def __len__(self):
         return self.num_sims * self.samples_per_sim
@@ -165,9 +313,7 @@ class PBDLDataset(Dataset):
         # create input-target pairs with interval time_steps from simulation steps
         sim_idx = idx // self.samples_per_sim
 
-        input_idx = (
-            self.start_offset + (idx % self.samples_per_sim) * self.step_size
-        )
+        input_idx = self.start_offset + (idx % self.samples_per_sim) * self.step_size
         target_idx = input_idx + self.time_steps
 
         input = self.data[sim_idx][input_idx]

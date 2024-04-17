@@ -7,13 +7,13 @@ import torch
 from dataset import PBDLDataset
 from dataloader import PBDLDataLoader
 from torch.utils.data import DataLoader
-import examples.cf.net_small as net_small
+import examples.tcf.net_small as net_small
 
 TIME_STEPS = 10
 
 BATCH_SIZE = 3
 LR = 0.0001
-EPOCHS = 8
+EPOCHS = 1
 
 MODEL_PATH = "model/small"
 
