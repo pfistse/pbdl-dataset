@@ -13,7 +13,9 @@ from phi.torch.flow import *
 from itertools import groupby
 import sys
 
-GLOBAL_DATASET_INDEX_URL = "https://syncandshare.lrz.de/dl/fiYHVktL6S9mZM6duNnSCP/datasets_global.json"  # TODO
+GLOBAL_DATASET_INDEX_URL = (
+    "https://syncandshare.lrz.de/dl/fiYHVktL6S9mZM6duNnSCP/datasets_global.json"  # TODO
+)
 
 GLOBAL_DATASET_INDEX_PATH = "datasets_global.json"
 LOCAL_DATASET_INDEX_PATH = "datasets.json"
@@ -39,7 +41,7 @@ except json.JSONDecodeError:
 # load global dataset index
 try:
     urllib.request.urlretrieve(
-        GLOBAL_DATASET_INDEX_URL, GLOBAL_DATASET_INDEX_PATH 
+        GLOBAL_DATASET_INDEX_URL, GLOBAL_DATASET_INDEX_PATH
     )  # update dataset index
 except urllib.error.URLError:
     print("Failed to fetch global dataset index.")
@@ -80,7 +82,7 @@ class PBDLDataset(Dataset):
 
             path = local_metadata[dataset]["path"]
 
-            if  not path.endswith(DATASET_EXT):
+            if not path.endswith(DATASET_EXT):
                 self.partitioned = True
 
                 if "num_part" in local_metadata[dataset]:
@@ -94,9 +96,9 @@ class PBDLDataset(Dataset):
                 if not simulations:
                     # search for partition files
                     self.part_files = [
-                        (path + f)
+                        (path + "/" + f)
                         for f in os.listdir(path)
-                        if os.path.isfile(path + f)
+                        if os.path.isfile(path + "/" + f)
                         and f.startswith(self.dataset + "-")
                     ]
 
@@ -110,7 +112,7 @@ class PBDLDataset(Dataset):
 
                     for i in simulations:
                         part_file = (
-                            path + self.dataset + "-" + str(i) + DATASET_EXT
+                            path + "/" + self.dataset + "-" + str(i) + DATASET_EXT
                         )
                         if os.path.isfile(part_file):
                             self.part_files.append(part_file)
@@ -126,7 +128,7 @@ class PBDLDataset(Dataset):
             self.constant_desc = metadata[dataset]["constant_desc"]
 
             endpoint = metadata[dataset]["endpoint"]
-            if  not endpoint.endswith(DATASET_EXT):
+            if not endpoint.endswith(DATASET_EXT):
                 self.partitioned = True
 
                 if "num_part" in metadata[dataset]:
@@ -166,11 +168,7 @@ class PBDLDataset(Dataset):
                         print(f"Simulation {i} not cached. Downloading...")
 
                         sim_file_endpoint = (
-                            endpoint
-                            + self.dataset
-                            + "-"
-                            + str(i)
-                            + DATASET_EXT
+                            endpoint + "/" + self.dataset + "-" + str(i) + DATASET_EXT
                         )
 
                         urllib.request.urlretrieve(sim_file_endpoint, part_file)
@@ -178,13 +176,13 @@ class PBDLDataset(Dataset):
                 # try to download normalization data
                 try:
                     urllib.request.urlretrieve(
-                        endpoint + "norm_data" + DATASET_EXT,
+                        endpoint + "/" + "norm_data" + DATASET_EXT,
                         DATASET_DIR + self.dataset + "norm_data" + DATASET_EXT,
                     )
                 except urllib.error.URLError:
                     print("No precomputed normalization data found on server.")
 
-                path = DATASET_DIR + self.dataset
+                # path = DATASET_DIR + self.dataset + "/"
 
             else:
 
@@ -263,7 +261,7 @@ class PBDLDataset(Dataset):
                 self.__normalize__()
 
     def __load_partition__(self, partition, match_first_part=True):
-        #print(f"DEBUG: loading partition {partition}")
+        # print(f"DEBUG: loading partition {partition}")
 
         self.part_loaded = partition
         loaded = np.load(self.part_files[partition])
@@ -299,7 +297,9 @@ class PBDLDataset(Dataset):
         field_groups = ["".join(g) for _, g in groupby(self.fields)]
 
         if self.partitioned:
-            norm_data_file_path = DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT
+            norm_data_file_path = (
+                DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT
+            )
 
             # normalization data cached
             if os.path.isfile(norm_data_file_path):

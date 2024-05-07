@@ -1,1 +1,1 @@
-A quick guide with examples can be found in [this](doc\pbdl-dataset-quick-guide.ipynb) Jupyter notebook.
+A quick guide with examples can be found in [this](doc/pbdl-dataset-quick-guide.ipynb) Jupyter notebook.
