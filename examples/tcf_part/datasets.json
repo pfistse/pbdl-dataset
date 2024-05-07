@@ -1,8 +1,0 @@
-{
-    "transonic-cylinder-flow-tiny": {
-        "path": "./datasets/transonic-cylinder-flow-tiny",
-        "fields": "VVdp",
-        "field_desc" : [""],
-        "constant_desc" : ["mach number"]
-    }
-}

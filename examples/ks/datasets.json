@@ -1,8 +1,0 @@
-{
-    "ks-dataset-combined": {
-        "path": "ks-dataset-combined.npz",
-        "fields": "a",
-        "field_desc" : [""],
-        "constant_desc" : ["domain size"]
-    }
-}
