@@ -1,7 +1,8 @@
 import os
+import sys
 import json
 import urllib.request
-import pickle
+import pkg_resources
 
 import numpy as np
 
@@ -11,43 +12,43 @@ from torch.utils.data import Dataset
 from phi.torch.flow import *
 
 from itertools import groupby
-import sys
-
-GLOBAL_DATASET_INDEX_URL = (
-    "https://syncandshare.lrz.de/dl/fiYHVktL6S9mZM6duNnSCP/datasets_global.json"  # TODO
-)
-
-GLOBAL_DATASET_INDEX_PATH = "datasets_global.json"
-LOCAL_DATASET_INDEX_PATH = "datasets.json"
-DATASET_DIR = "datasets/"
-DATASET_EXT = ".npz"
 
 # phi flow
 PHIFLOW_SPATIAL_DIM = ["x", "y", "z"]
 
+config_path = pkg_resources.resource_filename(__name__, "config.json")
+
+# load configuration
+try:
+    with open(config_path, "r") as f:
+        config = json.load(f)
+except json.JSONDecodeError:
+    raise ValueError("Invalid configuration file.")
+
 # load local dataset index
 try:
-    if os.path.isfile(LOCAL_DATASET_INDEX_PATH):
-        with open(LOCAL_DATASET_INDEX_PATH, "r") as f:
-            local_metadata = json.load(f)
+    if os.path.isfile(config["local_index_path"]):
+        with open(config["local_index_path"], "r") as f:
+            local_index = json.load(f)
     else:
-        local_metadata = {}
+        local_index = {}
 except json.JSONDecodeError:
     print(
-        f"Error: {LOCAL_DATASET_INDEX_PATH} has the wrong format. Ignoring local dataset index."
+        f"Error: {config['local_index_path']} has the wrong format. Ignoring local dataset index."
     )
-    local_metadata = {}
+    local_index = {}
 
 # load global dataset index
+global_index_path = pkg_resources.resource_filename(
+    __name__, config["global_index_file"]
+)
 try:
-    urllib.request.urlretrieve(
-        GLOBAL_DATASET_INDEX_URL, GLOBAL_DATASET_INDEX_PATH
-    )  # update dataset index
+    urllib.request.urlretrieve(config["global_index_url"], global_index_path)
 except urllib.error.URLError:
-    print("Failed to fetch global dataset index.")
+    print("Error: Failed to download global dataset index.")
 
-with open(GLOBAL_DATASET_INDEX_PATH, "r") as f:
-    metadata = json.load(f)
+with open(global_index_path, "r") as f:
+    global_index = json.load(f)
 
 
 class PBDLDataset(Dataset):
@@ -55,41 +56,43 @@ class PBDLDataset(Dataset):
         self,
         dataset,
         time_steps,
+        intermediate_time_steps=False,
         normalize=True,
+        solver=False,
         simulations=[],  # if empty, all simulations are loaded
-        start_offset=0,
-        end_offset=0,
+        trim_start=0,
+        trim_end=0,
         step_size=1,
-        time_stepping=False,
     ):
 
         self.dataset = dataset
         self.time_steps = time_steps
-        self.start_offset = start_offset
-        self.end_offset = end_offset
+        self.trim_start = trim_start
+        self.trim_end = trim_end
         self.step_size = step_size
-        self.time_stepping = time_stepping
+        self.intermediate_time_steps = intermediate_time_steps
         self.normalize = normalize
+        self.solver = solver
         self.partitioned = False
 
-        # TODO get number of simulations from endpoint
+        # TODO get number of simulations from url
 
-        # local dataset
-        if dataset in local_metadata.keys():
-            self.fields = local_metadata[dataset]["fields"]
-            self.field_desc = local_metadata[dataset]["field_desc"]
-            self.constant_desc = local_metadata[dataset]["constant_desc"]
+        # look for dataset in local index
+        if dataset in local_index.keys():
+            self.fields = local_index[dataset]["fields"]
+            self.field_desc = local_index[dataset]["field_desc"]
+            self.constant_desc = local_index[dataset]["constant_desc"]
 
-            path = local_metadata[dataset]["path"]
+            path = local_index[dataset]["path"]
 
-            if not path.endswith(DATASET_EXT):
+            if not path.endswith(config["dataset_ext"]):
                 self.partitioned = True
 
-                if "num_part" in local_metadata[dataset]:
-                    self.num_part = local_metadata[dataset]["num_part"]
+                if "num_part" in local_index[dataset]:
+                    self.num_part = local_index[dataset]["num_part"]
                 else:
                     raise ValueError(
-                        f"No 'num_part' attribute for partitioned dataset '{self.dataset}' in dataset index."
+                        f"No attribute 'num_part' for partitioned dataset '{self.dataset}' in dataset index."
                     )
 
             if self.partitioned:
@@ -111,28 +114,33 @@ class PBDLDataset(Dataset):
                     self.part_files = []
 
                     for i in simulations:
-                        part_file = (
-                            path + "/" + self.dataset + "-" + str(i) + DATASET_EXT
+                        part_path = (
+                            path
+                            + "/"
+                            + self.dataset
+                            + "-"
+                            + str(i)
+                            + config["dataset_ext"]
                         )
-                        if os.path.isfile(part_file):
-                            self.part_files.append(part_file)
+                        if os.path.isfile(part_path):
+                            self.part_files.append(part_path)
                         else:
                             raise ValueError(
                                 f"Simulation {i} not found in local dataset '{self.dataset}'."
                             )
 
-        # global dataset
-        elif dataset in metadata.keys():
-            self.fields = metadata[dataset]["fields"]
-            self.field_desc = metadata[dataset]["field_desc"]
-            self.constant_desc = metadata[dataset]["constant_desc"]
+        # if not found in local index than look in global index
+        elif dataset in global_index.keys():
+            self.fields = global_index[dataset]["fields"]
+            self.field_desc = global_index[dataset]["field_desc"]
+            self.constant_desc = global_index[dataset]["constant_desc"]
 
-            endpoint = metadata[dataset]["endpoint"]
-            if not endpoint.endswith(DATASET_EXT):
+            url = global_index[dataset]["url"]
+            if not url.endswith(config["dataset_ext"]):
                 self.partitioned = True
 
-                if "num_part" in metadata[dataset]:
-                    self.num_part = metadata[dataset]["num_part"]
+                if "num_part" in global_index[dataset]:
+                    self.num_part = global_index[dataset]["num_part"]
                 else:
                     raise ValueError(
                         f"No 'num_part' attribute for partitioned dataset '{self.dataset}' in dataset index."
@@ -141,62 +149,53 @@ class PBDLDataset(Dataset):
             if self.partitioned:
 
                 os.makedirs(
-                    os.path.dirname(DATASET_DIR + self.dataset + "/"), exist_ok=True
+                    os.path.dirname(config["dataset_dir"] + self.dataset + "/"),
+                    exist_ok=True,
                 )
 
                 self.part_files = []
 
-                # if not simulations:
-                #     raise ValueError(
-                #         "For partitioned global datasets, an explicit specification of the simulations is required."
-                #     )
-
-                # check if all necessary simulations are cached
+                # check if simulations are cached
                 for i in range(self.num_part):
-                    part_file = (
-                        DATASET_DIR
-                        + self.dataset
-                        + "/"
-                        + self.dataset
-                        + "-"
-                        + str(i)
-                        + DATASET_EXT
-                    )
-                    self.part_files.append(part_file)
+                    part_file = self.dataset + "-" + str(i) + config["dataset_ext"]
+                    part_path = config["dataset_dir"] + self.dataset + "/" + part_file
+                    self.part_files.append(part_path)
 
-                    if not os.path.isfile(part_file):
+                    if not os.path.isfile(part_path):
                         print(f"Simulation {i} not cached. Downloading...")
 
-                        sim_file_endpoint = (
-                            endpoint + "/" + self.dataset + "-" + str(i) + DATASET_EXT
-                        )
+                        part_url = url + "/" + part_file
 
-                        urllib.request.urlretrieve(sim_file_endpoint, part_file)
+                        try:
+                            urllib.request.urlretrieve(part_url, part_path)
+                        except urllib.error.URLError:
+                            raise FileNotFoundError(
+                                f"Could not download {part_file} from server."
+                            )
 
                 # try to download normalization data
                 try:
                     urllib.request.urlretrieve(
-                        endpoint + "/" + "norm_data" + DATASET_EXT,
-                        DATASET_DIR + self.dataset + "norm_data" + DATASET_EXT,
+                        url + "/" + config["norm_data_file"] + config["dataset_ext"],
+                        config["dataset_dir"] + self.dataset + config["norm_data_file"],
                     )
                 except urllib.error.URLError:
                     print("No precomputed normalization data found on server.")
 
-                # path = DATASET_DIR + self.dataset + "/"
-
             else:
 
-                path = DATASET_DIR + self.dataset + DATASET_EXT
+                path = config["dataset_dir"] + self.dataset + config["dataset_ext"]
 
-                if not os.path.isfile(DATASET_DIR + self.dataset + DATASET_EXT):
+                if not os.path.isfile(
+                    config["dataset_dir"] + self.dataset + config["dataset_ext"]
+                ):
                     print(f"Single-file dataset '{dataset}' not cached. Downloading...")
+                    os.makedirs(os.path.dirname(config["dataset_dir"]), exist_ok=True)
+                    urllib.request.urlretrieve(url, path)
 
-                    os.makedirs(os.path.dirname(DATASET_DIR), exist_ok=True)
-
-                    urllib.request.urlretrieve(endpoint, path)
-
+        # neither found in local index nor in global index
         else:
-            suggestions = ", ".join((metadata | local_metadata).keys())
+            suggestions = ", ".join((global_index | local_index).keys())
             raise ValueError(
                 f"Dataset '{dataset}' not found, datasets available are: {suggestions}."
             )
@@ -205,11 +204,12 @@ class PBDLDataset(Dataset):
 
         if self.partitioned:
             # load only the first partition
-            self.__load_partition__(0, match_first_part=False)
+            self.__load_partition__(0, assert_shape=False)
+
+            # partition shape expected for all other partitions
             self.part_data_shape = self.data.shape
             self.part_const_shape = self.const.shape
 
-            # do validation checks lazy (done in __load_partition__)
         else:
             loaded_sims = np.load(path)
             self.data = loaded_sims["data"]
@@ -245,7 +245,7 @@ class PBDLDataset(Dataset):
         )
 
         self.samples_per_sim = (
-            self.num_frames - self.time_steps - self.start_offset - self.end_offset
+            self.num_frames - self.time_steps - self.trim_start - self.trim_end
         ) // self.step_size
 
         print(
@@ -260,8 +260,7 @@ class PBDLDataset(Dataset):
             if not self.partitioned:
                 self.__normalize__()
 
-    def __load_partition__(self, partition, match_first_part=True):
-        # print(f"DEBUG: loading partition {partition}")
+    def __load_partition__(self, partition, assert_shape=True):
 
         self.part_loaded = partition
         loaded = np.load(self.part_files[partition])
@@ -269,7 +268,7 @@ class PBDLDataset(Dataset):
         self.const = loaded["constants"]
 
         # valide shape
-        if match_first_part:
+        if assert_shape:
             if self.data.shape != self.part_data_shape:
                 raise ValueError(
                     f"The data shape of all partitions must be consistent. At least one does not match {self.part_data_shape}."
@@ -298,10 +297,10 @@ class PBDLDataset(Dataset):
 
         if self.partitioned:
             norm_data_file_path = (
-                DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT
+                config["dataset_dir"] + self.dataset + "/" + config["norm_data_file"]
             )
 
-            # normalization data cached
+            # check if normalization data is cached
             if os.path.isfile(norm_data_file_path):
 
                 loaded_norm_data = np.load(norm_data_file_path)
@@ -336,23 +335,19 @@ class PBDLDataset(Dataset):
             # calculate normalization data
             else:
                 print("No precomputed normalization data found. Calculating data...")
-                # sequential loading of partitions for calculation
 
                 groups_std = []
                 groups_std_slim = [0] * len(field_groups)
                 const_stacked = []
                 idx = 0
 
-                for part_file in self.part_files:
-                    partition = np.load(part_file)
-                    part_data = partition["data"]
-                    part_const = partition["constants"]
-
-                    # TODO do validation checks
+                # sequential loading of partitions
+                for partition in range(self.num_part):
+                    self.__load_partition__(partition)
 
                     # calculate normalization constants by field
                     for group_idx, group in enumerate(field_groups):
-                        group_field = part_data[:, idx : (idx + len(group)), ...]
+                        group_field = self.data[:, idx : (idx + len(group)), ...]
 
                         # vector norm
                         group_norm = np.linalg.norm(group_field, axis=1, keepdims=True)
@@ -366,7 +361,7 @@ class PBDLDataset(Dataset):
 
                         idx += len(group)
 
-                    const_stacked.append(part_const)
+                    const_stacked.append(self.const)
 
                 # TODO overall std is calculated by averaging the std of all sims, efficient but mathematically not correct
                 for group_idx, group in enumerate(field_groups):
@@ -382,7 +377,10 @@ class PBDLDataset(Dataset):
 
                 # cache norm data
                 np.savez(
-                    DATASET_DIR + self.dataset + "/norm_data" + DATASET_EXT,
+                    config["dataset_dir"]
+                    + self.dataset
+                    + "/"
+                    + config["norm_data_file"],
                     **{
                         "data_std": self.data_std,
                         "const_mean": self.const_mean,
@@ -422,6 +420,10 @@ class PBDLDataset(Dataset):
     def __normalize__(self):
         self.data /= self.data_std
 
+        # solver needs non-normalized constants
+        if self.solver:
+            self.nnorm_const = self.const
+
         if abs(self.const_std) < 10e-10:
             self.const = np.zeros_like(self.const)
         else:
@@ -436,7 +438,7 @@ class PBDLDataset(Dataset):
         # create input-target pairs with interval time_steps from simulation steps
         sim_idx = idx // self.samples_per_sim
 
-        input_idx = self.start_offset + (idx % self.samples_per_sim) * self.step_size
+        input_idx = self.trim_start + (idx % self.samples_per_sim) * self.step_size
         target_idx = input_idx + self.time_steps
 
         if self.partitioned:
@@ -452,21 +454,39 @@ class PBDLDataset(Dataset):
 
         input = sim[input_idx]
 
-        if self.time_stepping:
+        if self.intermediate_time_steps:
             target = sim[input_idx + 1 : target_idx + 1]
         else:
             target = sim[target_idx]
-        return (
-            input,
-            tuple(self.const if self.partitioned else self.const[sim_idx]),
-            target,
-        )
+
+        if self.solver:
+            return (
+                input,
+                tuple(self.const if self.partitioned else self.const[sim_idx]),
+                target,
+                tuple(
+                    self.nnorm_const if self.partitioned else self.nnorm_const[sim_idx]
+                ),
+            )
+        else:
+            return (
+                input,
+                tuple(self.const if self.partitioned else self.const[sim_idx]),
+                target,
+            )
 
     def to_phiflow(self, data):
         """Convert network input to solver input. Constant layers are ignored."""
         spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.num_spatial_dim])
+
+        # if necessary, cut off constant layers
+        data = data[:, 0 : self.num_fields, ...]
+
+        if self.normalize:
+            data = data * torch.tensor(self.data_std)
+
         return tensor(
-            data[:, 0:1, ...],
+            data,
             batch("b"),
             instance("time"),
             spatial(spatial_dim),
@@ -475,7 +495,13 @@ class PBDLDataset(Dataset):
     def from_phiflow(self, data):
         """Convert solver output to a network output-like format."""
         spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.num_spatial_dim])
-        return data.native(["b", "time", spatial_dim])
+
+        data = data.native(["b", "time", spatial_dim])
+
+        if self.normalize:
+            data = data / torch.tensor(self.data_std)
+
+        return data
 
     def cat_constants(self, data, like):
         """Concatenate constants from `like` to `data`. Useful for mapping network outputs to network inputs of the next iteration."""

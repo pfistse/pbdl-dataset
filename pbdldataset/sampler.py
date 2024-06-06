@@ -1,4 +1,4 @@
-from dataset import PBDLDataset
+from pbdldataset.dataset import PBDLDataset
 
 import numpy as np
 from torch.utils.data import BatchSampler
