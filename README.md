@@ -1,7 +1,7 @@
 # Installation
 After you have downloaded the repository, navigate to the directory and run the following command:
 ```
-pip install 
+pip install .
 ```
 
 # Examples
