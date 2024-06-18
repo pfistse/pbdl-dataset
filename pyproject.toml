@@ -16,3 +16,6 @@ requires-python = ">=3.9"
 
 [project.urls]
 Homepage = "https://github.com/pfistse/pbdl-dataset"
+
+[tool.setuptools.package-data]
+"pbdldataset" = ["config.json"]
