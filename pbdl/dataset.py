@@ -1,20 +1,10 @@
 import os
-import sys
 import json
 import urllib.request
 import pkg_resources
-
-import numpy as np
-
-import torch
-from torch.utils.data import Dataset
-
-from phi.torch.flow import *
-
 from itertools import groupby
 
-# phi flow
-PHIFLOW_SPATIAL_DIM = ["x", "y", "z"]
+import numpy as np
 
 config_path = pkg_resources.resource_filename(__name__, "config.json")
 
@@ -51,7 +41,7 @@ with open(global_index_path, "r") as f:
     global_index = json.load(f)
 
 
-class PBDLDataset(Dataset):
+class Dataset:
     def __init__(
         self,
         dataset,
@@ -433,7 +423,15 @@ class PBDLDataset(Dataset):
         return self.num_sims * self.samples_per_sim
 
     def __getitem__(self, idx):
-        """The data provided has the shape (channels [e.g. velocity_x, velocity_y, density, pressure], x-size, y-size [, z-size])."""
+        """
+        The data provided has the shape (channels, spatial dims...).
+
+        Returns:
+            numpy.ndarray: Input data (without constants)
+            tuple: Constants
+            numpy.ndarray: Target data
+            tuple: Non-normalized constants (only if solver flag is set)
+        """
 
         # create input-target pairs with interval time_steps from simulation steps
         sim_idx = idx // self.samples_per_sim
@@ -474,38 +472,3 @@ class PBDLDataset(Dataset):
                 tuple(self.const if self.partitioned else self.const[sim_idx]),
                 target,
             )
-
-    def to_phiflow(self, data):
-        """Convert network input to solver input. Constant layers are ignored."""
-        spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.num_spatial_dim])
-
-        # if necessary, cut off constant layers
-        data = data[:, 0 : self.num_fields, ...]
-
-        if self.normalize:
-            data = data * torch.tensor(self.data_std)
-
-        return tensor(
-            data,
-            batch("b"),
-            instance("time"),
-            spatial(spatial_dim),
-        )
-
-    def from_phiflow(self, data):
-        """Convert solver output to a network output-like format."""
-        spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.num_spatial_dim])
-
-        data = data.native(["b", "time", spatial_dim])
-
-        if self.normalize:
-            data = data / torch.tensor(self.data_std)
-
-        return data
-
-    def cat_constants(self, data, like):
-        """Concatenate constants from `like` to `data`. Useful for mapping network outputs to network inputs of the next iteration."""
-        return torch.cat(
-            [data, like[:, self.num_fields : self.num_fields + self.num_const, ...]],
-            axis=1,
-        )  # dim 0 is batch dimension

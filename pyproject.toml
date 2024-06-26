@@ -3,19 +3,28 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pbdl-dataset"
+name = "pbdl"
 version = "1.0.0"
 description = "Manage datasets for physics-based deep learning"
 readme = "README.md"
 license = { file = "LICENSE" }
-dependencies = [
-    "torch >= 2.0.0",
-    "numpy >= 1.0.0",
-]
 requires-python = ">=3.9"
 
-[project.urls]
-Homepage = "https://github.com/pfistse/pbdl-dataset"
+dependencies = ["numpy >= 1.0.0"]
+
+[project.optional-dependencies]
+torch = ["torch >= 2.0.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "pbdl",
+    "pbdl.torch",
+    "pbdl.torch.phi",
+]
 
 [tool.setuptools.package-data]
 "pbdldataset" = ["config.json"]
+
+[project.urls]
+Homepage = "https://github.com/pfistse/pbdl-dataset"

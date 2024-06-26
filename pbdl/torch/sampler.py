@@ -1,11 +1,17 @@
-from pbdldataset.dataset import PBDLDataset
+"""
+TODO sub package description
+"""
 
+# non-local package imports
 import numpy as np
-from torch.utils.data import BatchSampler
+import torch.utils.data
+
+# local class imports
+import pbdl.torch.dataset
 
 
-class PBDLConstantBatchSampler(BatchSampler):
-    def __init__(self, dataset: PBDLDataset, batch_size, group_constants=None):
+class ConstantBatchSampler(torch.utils.data.BatchSampler):
+    def __init__(self, dataset: pbdl.torch.dataset.Dataset, batch_size, group_constants=None):
         self.dataset = dataset
         self.batch_size = batch_size
         self.group_constants = group_constants
