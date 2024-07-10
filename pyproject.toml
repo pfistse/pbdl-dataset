@@ -24,7 +24,7 @@ include = [
 ]
 
 [tool.setuptools.package-data]
-"pbdldataset" = ["config.json"]
+"pbdl" = ["config.json"]
 
 [project.urls]
 Homepage = "https://github.com/pfistse/pbdl-dataset"
