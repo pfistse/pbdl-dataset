@@ -1,0 +1,21 @@
+{
+    "incompressible-wake-flow-tiny": {
+        "url": "https://syncandshare.lrz.de/dl/fiFpt1oyzXW8J4uvg43JF8/incompressible_wake_flow_tiny.hdf5",
+        "fields": "VVd",
+        "field_desc" : ["velocity x", "velocity y", "density"],
+        "const_desc" : ["mach number"]
+    },
+    "transonic-cylinder-flow-tiny": {
+        "url": "https://syncandshare.lrz.de/dl/fiFpt1oyzXW8J4uvg43JF8/transonic_cylinder_flow_tiny.hdf5",
+        "fields": "VVdp",
+        "field_desc" : ["velocity x", "velocity y", "density", "pressure"],
+        "const_desc" : ["mach number"]
+    },
+    "ks-dataset": {
+        "url": "https://syncandshare.lrz.de/dl/fiFpt1oyzXW8J4uvg43JF8/ks-dataset",
+        "num_part": 6,
+        "fields": "V",
+        "field_desc" : ["velocity"],
+        "const_desc" : ["domain size"]
+    }
+}

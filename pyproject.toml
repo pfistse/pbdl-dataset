@@ -10,18 +10,15 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
 
-dependencies = ["numpy >= 1.0.0"]
+dependencies = ["numpy >= 1.0.0", "h5py >= 3.11.0"]
 
 [project.optional-dependencies]
+tools = ["opencv-python >= 1.17.0"]
 torch = ["torch >= 2.0.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = [
-    "pbdl",
-    "pbdl.torch",
-    "pbdl.torch.phi",
-]
+include = ["pbdl", "pbdl.tools", "pbdl.torch", "pbdl.torch.phi"]
 
 [tool.setuptools.package-data]
 "pbdl" = ["config.json"]

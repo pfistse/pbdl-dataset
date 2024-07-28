@@ -1,7 +1,7 @@
 # Installation
-After you have downloaded the repository, navigate to the directory and run the following command:
+With this command, you can install the package directly from GitHub:
 ```
-pip install .
+pip install git+https://github.com/pfistse/pbdl-dataset
 ```
 
 # Examples
