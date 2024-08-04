@@ -62,6 +62,7 @@ class Dataset:
         trim_start=0,
         trim_end=0,
         step_size=1,
+        **kwargs,
     ):
 
         self.time_steps = time_steps
@@ -72,10 +73,16 @@ class Dataset:
         self.normalize = normalize
         self.solver = solver
 
+        config.update(kwargs)
+
         # TODO get number of simulations from url
 
         if dset_name in local_index.keys():
-            self.__load_dataset__(dset_name, dset_file=local_index[dset_name]["path"])
+            self.__load_dataset__(
+                dset_name,
+                dset_file=config["local_datasets_dir"]
+                + local_index[dset_name]["path"],
+            )
         elif dset_name in global_index.keys():
             Dataset.__download_dataset__(dset_name, sel_sims)
             self.__load_dataset__(dset_name)
