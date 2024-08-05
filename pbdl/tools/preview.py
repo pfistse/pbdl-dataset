@@ -42,7 +42,7 @@ def create_preview_video(
 
     high_res_size = (res_width, int((height / width) * res_width))
 
-    fourcc = cv2.VideoWriter_fourcc(*"MP42")
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
     video = cv2.VideoWriter(path, fourcc, float(fps), high_res_size, False)
 
     # normalize
