@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: pbdl
+Version: 1.0.0
+Summary: Manage datasets for physics-based deep learning
+Project-URL: Homepage, https://github.com/pfistse/pbdl-dataset
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENCE
+Requires-Dist: numpy>=1.0.0
+Requires-Dist: h5py>=3.11.0
+Provides-Extra: tools
+Requires-Dist: opencv-python>=1.17.0; extra == "tools"
+Provides-Extra: torch
+Requires-Dist: torch>=2.0.0; extra == "torch"
+
+# Installation
+With this command, you can install the package directly from GitHub:
+```
+pip install git+https://github.com/pfistse/pbdl-dataset
+```
+
+# Examples
+A quick guide with examples can be found in [this](doc/pbdl-dataset-quick-guide.ipynb) Jupyter notebook.
+
+# Datasets
+All currently available datasets are listed on [this](https://pfistse.github.io/dataset-gallery/) page.

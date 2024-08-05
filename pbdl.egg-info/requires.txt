@@ -1,0 +1,8 @@
+numpy>=1.0.0
+h5py>=3.11.0
+
+[tools]
+opencv-python>=1.17.0
+
+[torch]
+torch>=2.0.0
