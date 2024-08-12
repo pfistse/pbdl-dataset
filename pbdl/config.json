@@ -3,6 +3,6 @@
     "global_index_file" : "index_global.json",
     "local_index_path" : "datasets.json",
     "local_datasets_dir": "./",
-    "dataset_dir" : "datasets/",
+    "dataset_dir" : "./datasets/",
     "dataset_ext" : ".hdf5"
 }

@@ -25,7 +25,11 @@ def create_preview_video(
 
     # TODO what if fps * sec too large?
     dataset = Dataset(
-        dataset_name, fps * sec, intermediate_time_steps=True, normalize=False
+        dataset_name,
+        fps * sec,
+        sel_sims=[0],
+        intermediate_time_steps=True,
+        normalize=False,
     )
 
     first_frame, _, rem_frames = dataset[0]
@@ -42,8 +46,8 @@ def create_preview_video(
 
     high_res_size = (res_width, int((height / width) * res_width))
 
-    fourcc = cv2.VideoWriter_fourcc(*"XVID")
-    video = cv2.VideoWriter(path, fourcc, float(fps), high_res_size, False)
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    video = cv2.VideoWriter(path, fourcc, float(fps), high_res_size)
 
     # normalize
     min, max = frames.min(), frames.max()
@@ -57,7 +61,7 @@ def create_preview_video(
             high_res_size,
             interpolation=cv2.INTER_NEAREST,
         )
-        
+
         video.write(high_res_frame)
 
     video.release()
