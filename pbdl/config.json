@@ -1,7 +1,7 @@
 {
     "global_index_url" : "https://syncandshare.lrz.de/dl/fiFpt1oyzXW8J4uvg43JF8/index_global.json",
     "global_index_file" : "index_global.json",
-    "local_index_path" : "datasets.json",
+    "local_index_path" : "./datasets.json",
     "local_datasets_dir": "./",
     "dataset_dir" : "./datasets/",
     "dataset_ext" : ".hdf5"

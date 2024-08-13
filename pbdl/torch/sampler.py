@@ -6,6 +6,7 @@ TODO sub package description
 import numpy as np
 import pbdl.torch.phi.dataset
 import torch.utils.data
+import random
 
 # local class imports
 import pbdl.torch.phi.dataset
@@ -28,15 +29,22 @@ class ConstantBatchSampler(torch.utils.data.BatchSampler):
         print("Prepare constant batch sampling...")
 
         groups = {}
-        for idx, (_, _, _, constants) in enumerate(self.dataset):
-            if not self.group_constants is None:
-                constants = tuple(
-                    [constants[i] for i in self.group_constants]
-                )  # project constants to self.group_constants
+        for sim_range in self.dataset.iterate_sims():
 
-            if constants not in groups:
-                groups[constants] = []
-            groups[constants].append(idx)
+            # the constants of the first sample are representative for the sim
+            _, _, _, const = self.dataset[sim_range[0]]
+
+            group_by_const = tuple(
+                [const[i] for i in self.group_constants]
+            )  # project constants onto self.group_constants
+
+            if group_by_const not in groups:
+                groups[group_by_const] = []
+            groups[group_by_const].extend(sim_range)
+        
+        for group in groups.values():
+            random.shuffle(group)
+
         return list(groups.values())
 
     def __iter__(self):

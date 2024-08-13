@@ -118,7 +118,9 @@ class Dataset:
 
             num_part = self.global_index[dset_name]["num_part"]
 
-            dset_file = os.path.join(config["dataset_dir"], dset_name + config["dataset_ext"])
+            dset_file = os.path.join(
+                config["dataset_dir"], dset_name + config["dataset_ext"]
+            )
 
             if not sel_sims:
                 sel_sims = range(num_part)
@@ -166,7 +168,9 @@ class Dataset:
         # single-file dataset
         else:
 
-            dset_file = os.path.join(config["dataset_dir"], dset_name + config["dataset_ext"])
+            dset_file = os.path.join(
+                config["dataset_dir"], dset_name + config["dataset_ext"]
+            )
 
             if not os.path.isfile(dset_file):
                 # print(f"Dataset '{dset_name}' not cached. Downloading...")
@@ -188,7 +192,9 @@ class Dataset:
             self.const_desc = self.global_index[dset_name]["const_desc"]
 
         if not dset_file:
-            dset_file = os.path.join(config["dataset_dir"],  dset_name + config["dataset_ext"])
+            dset_file = os.path.join(
+                config["dataset_dir"], dset_name + config["dataset_ext"]
+            )
 
         self.dset = h5py.File(dset_file, "r")
 
@@ -369,10 +375,16 @@ class Dataset:
                 const = (const - self.const_mean) / self.const_std
 
         return (
-                input,
-                tuple(const), # required by loader
-                target,
-            )
+            input,
+            tuple(const),  # required by loader
+            target,
+        )
+    
+    def iterate_sims(self):
+        num_sel_sims = len(self.sel_sims) if self.sel_sims else self.num_sims
+        for s in range(num_sel_sims):
+            yield range(s * self.samples_per_sim, (s + 1) * self.samples_per_sim)
+
 
 def print_download_progress(count, block_size, total_size, message=None):
     progress = count * block_size
