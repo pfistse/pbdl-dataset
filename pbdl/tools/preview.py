@@ -51,7 +51,7 @@ def create_preview_video(
     high_res_size = (res_width, int((height / width) * res_width))
 
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    video = cv2.VideoWriter(path, fourcc, float(fps), high_res_size)
+    video = cv2.VideoWriter("tmp.mp4", fourcc, float(fps), high_res_size)
 
     # normalize
     min, max = frames.min(), frames.max()
@@ -71,4 +71,4 @@ def create_preview_video(
     video.release()
 
     # TODO quick fix to convert to browser compatible video codec
-    os.system(f"ffmpeg -y -i {path} -vcodec libx264 -f mp4 {path}")
+    os.system(f"ffmpeg -i tmp.mp4 -vcodec libx264 -f mp4 {path}")
