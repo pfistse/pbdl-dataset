@@ -62,6 +62,7 @@ class Dataset:
         self,
         dset_name,
         time_steps,
+        intermediate_time_steps=False,
         normalize=True,
         sel_sims=None,  # if None, all simulations are loaded
         trim_start=0,
@@ -74,7 +75,7 @@ class Dataset:
         self.trim_start = trim_start
         self.trim_end = trim_end
         self.step_size = step_size
-        # self.intermediate_time_steps = intermediate_time_steps
+        self.intermediate_time_steps = intermediate_time_steps
         self.normalize = normalize
         # self.solver = solver
         self.sel_sims = sel_sims
@@ -367,12 +368,19 @@ class Dataset:
         if self.normalize:
             input /= self.data_std
 
-        target = sim[target_frame_idx]
+        if self.intermediate_time_steps:
+            target = sim[input_frame_idx + 1 : target_frame_idx + 1]
+        else:
+            target = sim[target_frame_idx]
 
         # normalize
         if self.normalize:
             input /= self.data_std
-            target /= self.data_std
+            target /= (
+                self.data_std[None, :, :]  # add frame dimension
+                if self.intermediate_time_steps
+                else self.data_std
+            )
 
             if (abs(self.const_std) < 10e-10).any():  # TODO
                 const = np.zeros_like(const)

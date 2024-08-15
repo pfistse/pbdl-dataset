@@ -12,9 +12,7 @@ PHIFLOW_SPATIAL_DIM = ["x", "y", "z"]
 
 class Dataset(pbdl.dataset.Dataset):
 
-    def __init__(self, *args, intermediate_time_steps=False, **kwargs):
-        self.intermediate_time_steps = intermediate_time_steps
-
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def __getitem__(self, idx):

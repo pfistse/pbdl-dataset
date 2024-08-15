@@ -9,7 +9,7 @@ import cv2
 import os
 
 # local class imports
-from pbdl.torch.phi.loader import Dataset
+from pbdl.loader import Dataset
 
 
 # TODO what if there are more that 2 spatial dim?
