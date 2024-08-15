@@ -30,7 +30,7 @@ def create_preview_video(
         sel_sims=[0],
         intermediate_time_steps=True,
         normalize=False,
-        disable_progress=True,
+        disable_progress=True,  
     )
 
     if dataset.num_spatial_dims() < 2:
@@ -71,4 +71,4 @@ def create_preview_video(
     video.release()
 
     # TODO quick fix to convert to browser compatible video codec
-    os.system(f"ffmpeg -i {path} -vcodec libx264 -f mp4 {path}")
+    os.system(f"ffmpeg -y -i {path} -vcodec libx264 -f mp4 {path}")
