@@ -9,7 +9,7 @@ import cv2
 import os
 
 # local class imports
-from pbdl.dataset import Dataset
+from pbdl.torch.phi.loader import Dataset
 
 
 # TODO what if there are more that 2 spatial dim?
@@ -19,7 +19,7 @@ def create_preview_video(
     channels=(0, 1),
     fps=30,
     sec=5,
-    res_width=1024,  # maintain width-height ratio
+    res_width=512,  # maintain width-height ratio
     cmap=plt.get_cmap("twilight"),
 ):
 
@@ -32,7 +32,10 @@ def create_preview_video(
         normalize=False,
     )
 
-    first_frame, _, rem_frames = dataset[0]
+    if dataset.num_spatial_dims() < 2:
+        raise ValueError("Error: Dataset must have at least 2 spatial dimensions.")
+
+    first_frame, _, rem_frames, _ = dataset[0]
     frames = np.append([first_frame], rem_frames, axis=0)
 
     # take vector norm
@@ -65,3 +68,6 @@ def create_preview_video(
         video.write(high_res_frame)
 
     video.release()
+
+    # TODO quick fix to convert to browser compatible video codec
+    os.system(f"ffmpeg -i {path} -vcodec libx264 -f mp4 {path}")

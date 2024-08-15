@@ -19,6 +19,43 @@ try:
 except json.JSONDecodeError:
     raise ValueError("Invalid configuration file.")
 
+def __load_indices__():
+    global global_index
+    global local_index
+
+    # load local dataset index
+    try:
+        if os.path.isfile(config["local_index_path"]):
+            with open(config["local_index_path"], "r") as f:
+                local_index = json.load(f)
+        else:
+            local_index = {}
+    except json.JSONDecodeError:
+        print(
+            colors.WARNING
+            + f"Warning: {config['local_index_path']} has the wrong format. Ignoring local dataset index."
+            + colors.ENDC
+        )
+        local_index = {}
+
+    # load global dataset index
+    global_index_path = pkg_resources.resource_filename(
+        __name__, config["global_index_file"]
+    )
+    try:
+        urllib.request.urlretrieve(config["global_index_url"], global_index_path)
+    except urllib.error.URLError:
+        print(
+            colors.WARNING
+            + "Warning: Failed to download global dataset index. Check your internet connection."
+            + colors.ENDC
+        )
+
+    with open(global_index_path, "r") as f:
+        global_index = json.load(f)
+
+def datasets():
+    return (global_index | local_index).keys()
 
 class Dataset:
     def __init__(
@@ -43,22 +80,22 @@ class Dataset:
         self.sel_sims = sel_sims
 
         config.update(kwargs)
-        self.__load_indices__()
+        __load_indices__()
 
         # TODO get number of simulations from url
 
-        if dset_name in self.local_index.keys():
+        if dset_name in local_index.keys():
             self.__load_dataset__(
                 dset_name,
                 dset_file=os.path.join(
-                    config["local_datasets_dir"], self.local_index[dset_name]["path"]
+                    config["local_datasets_dir"], local_index[dset_name]["path"]
                 ),
             )
-        elif dset_name in self.global_index.keys():
+        elif dset_name in global_index.keys():
             self.__download_dataset__(dset_name, sel_sims)
             self.__load_dataset__(dset_name)
         else:
-            suggestions = ", ".join((self.global_index | self.local_index).keys())
+            suggestions = ", ".join(self.datasets())
             print(
                 colors.FAIL
                 + f"Dataset '{dset_name}' not found, datasets available are: {suggestions}."
@@ -78,45 +115,13 @@ class Dataset:
         if self.normalize:
             self.__prepare_norm_data__()
 
-    def __load_indices__(self):
-        # load local dataset index
-        try:
-            if os.path.isfile(config["local_index_path"]):
-                with open(config["local_index_path"], "r") as f:
-                    self.local_index = json.load(f)
-            else:
-                self.local_index = {}
-        except json.JSONDecodeError:
-            print(
-                colors.WARNING
-                + f"Warning: {config['local_index_path']} has the wrong format. Ignoring local dataset index."
-                + colors.ENDC
-            )
-            self.local_index = {}
-
-        # load global dataset index
-        global_index_path = pkg_resources.resource_filename(
-            __name__, config["global_index_file"]
-        )
-        try:
-            urllib.request.urlretrieve(config["global_index_url"], global_index_path)
-        except urllib.error.URLError:
-            print(
-                colors.WARNING
-                + "Warning: Failed to download global dataset index. Check your internet connection."
-                + colors.ENDC
-            )
-
-        with open(global_index_path, "r") as f:
-            self.global_index = json.load(f)
-
     def __download_dataset__(self, dset_name, sel_sims=None):
-        url = self.global_index[dset_name]["url"]
+        url = global_index[dset_name]["url"]
 
         # partitioned dataset
-        if "num_part" in self.global_index[dset_name]:
+        if "num_part" in global_index[dset_name]:
 
-            num_part = self.global_index[dset_name]["num_part"]
+            num_part = global_index[dset_name]["num_part"]
 
             dset_file = os.path.join(
                 config["dataset_dir"], dset_name + config["dataset_ext"]
@@ -182,14 +187,14 @@ class Dataset:
     def __load_dataset__(self, dset_name, dset_file=None):
         self.dset_name = dset_name
 
-        if dset_name in self.local_index.keys():
-            self.fields = self.local_index[dset_name]["fields"]
-            self.field_desc = self.local_index[dset_name]["field_desc"]
-            self.const_desc = self.local_index[dset_name]["const_desc"]
-        elif dset_name in self.global_index.keys():
-            self.fields = self.global_index[dset_name]["fields"]
-            self.field_desc = self.global_index[dset_name]["field_desc"]
-            self.const_desc = self.global_index[dset_name]["const_desc"]
+        if dset_name in local_index.keys():
+            self.fields = local_index[dset_name]["fields"]
+            self.field_desc = local_index[dset_name]["field_desc"]
+            self.const_desc = local_index[dset_name]["const_desc"]
+        elif dset_name in global_index.keys():
+            self.fields = global_index[dset_name]["fields"]
+            self.field_desc = global_index[dset_name]["field_desc"]
+            self.const_desc = global_index[dset_name]["const_desc"]
 
         if not dset_file:
             dset_file = os.path.join(
@@ -384,7 +389,9 @@ class Dataset:
         num_sel_sims = len(self.sel_sims) if self.sel_sims else self.num_sims
         for s in range(num_sel_sims):
             yield range(s * self.samples_per_sim, (s + 1) * self.samples_per_sim)
-
+    
+    def num_spatial_dims(self):
+        return self.num_spatial_dim
 
 def print_download_progress(count, block_size, total_size, message=None):
     progress = count * block_size
@@ -419,3 +426,5 @@ def print_download_progress(count, block_size, total_size, message=None):
     if progress == total_size:
         sys.stdout.write("\n")
         sys.stdout.flush()
+
+__load_indices__()  
