@@ -124,6 +124,8 @@ class Dataset:
     def __download_dataset__(self, dset_name, sel_sims=None):
         url = global_index[dset_name]["url"]
 
+        os.makedirs(os.path.dirname(config["dataset_dir"]), exist_ok=True)
+
         # partitioned dataset
         if "num_part" in global_index[dset_name]:
 
@@ -186,7 +188,6 @@ class Dataset:
 
             if not os.path.isfile(dset_file):
                 # print(f"Dataset '{dset_name}' not cached. Downloading...")
-                os.makedirs(os.path.dirname(config["dataset_dir"]), exist_ok=True)
                 urllib.request.urlretrieve(
                     url,
                     dset_file,
