@@ -30,6 +30,7 @@ def create_preview_video(
         sel_sims=[0],
         intermediate_time_steps=True,
         normalize=False,
+        disable_progress=True,
     )
 
     if dataset.num_spatial_dims() < 2:

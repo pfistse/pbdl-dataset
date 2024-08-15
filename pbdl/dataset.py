@@ -19,6 +19,7 @@ try:
 except json.JSONDecodeError:
     raise ValueError("Invalid configuration file.")
 
+
 def __load_indices__():
     global global_index
     global local_index
@@ -54,8 +55,10 @@ def __load_indices__():
     with open(global_index_path, "r") as f:
         global_index = json.load(f)
 
+
 def datasets():
     return (global_index | local_index).keys()
+
 
 class Dataset:
     def __init__(
@@ -68,6 +71,7 @@ class Dataset:
         trim_start=0,
         trim_end=0,
         step_size=1,
+        disable_progress=False,
         **kwargs,
     ):
 
@@ -79,6 +83,7 @@ class Dataset:
         self.normalize = normalize
         # self.solver = solver
         self.sel_sims = sel_sims
+        self.disable_progress = disable_progress
 
         config.update(kwargs)
         __load_indices__()
@@ -136,12 +141,13 @@ class Dataset:
                 added_sim = False
                 # check if simulations are cached
                 for i, s in enumerate(sel_sims):
-                    print_download_progress(
-                        i,
-                        1,
-                        len(sel_sims),
-                        message=f"downloading sim {s}",
-                    )
+                    if not self.disable_progress:
+                        print_download_progress(
+                            i,
+                            1,
+                            len(sel_sims),
+                            message=f"downloading sim {s}",
+                        )
 
                     if "sims/sim" + str(s) not in f:
                         added_sim = True
@@ -160,10 +166,10 @@ class Dataset:
                                     "sims/sim" + str(s), data=f_sim["sims/sim0"]
                                 )
                                 sim.attrs["const"] = f_sim["sims/sim0"].attrs["const"]
-
-                print_download_progress(
-                    len(sel_sims), 1, len(sel_sims), message="download completed"
-                )
+                if not self.disable_progress:
+                    print_download_progress(
+                        len(sel_sims), 1, len(sel_sims), message="download completed"
+                    )
 
                 # normalization data does not incorporate all sims
                 if added_sim:
@@ -182,7 +188,11 @@ class Dataset:
                 # print(f"Dataset '{dset_name}' not cached. Downloading...")
                 os.makedirs(os.path.dirname(config["dataset_dir"]), exist_ok=True)
                 urllib.request.urlretrieve(
-                    url, dset_file, reporthook=print_download_progress
+                    url,
+                    dset_file,
+                    reporthook=(
+                        None if self.disable_progress else print_download_progress
+                    ),
                 )
 
     def __load_dataset__(self, dset_name, dset_file=None):
@@ -392,14 +402,15 @@ class Dataset:
             tuple(const),  # required by loader
             target,
         )
-    
+
     def iterate_sims(self):
         num_sel_sims = len(self.sel_sims) if self.sel_sims else self.num_sims
         for s in range(num_sel_sims):
             yield range(s * self.samples_per_sim, (s + 1) * self.samples_per_sim)
-    
+
     def num_spatial_dims(self):
         return self.num_spatial_dim
+
 
 def print_download_progress(count, block_size, total_size, message=None):
     progress = count * block_size
@@ -435,4 +446,5 @@ def print_download_progress(count, block_size, total_size, message=None):
         sys.stdout.write("\n")
         sys.stdout.flush()
 
-__load_indices__()  
+
+__load_indices__()
