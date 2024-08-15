@@ -35,7 +35,7 @@ def create_preview_video(
     if dataset.num_spatial_dims() < 2:
         raise ValueError("Error: Dataset must have at least 2 spatial dimensions.")
 
-    first_frame, _, rem_frames, _ = dataset[0]
+    first_frame, _, rem_frames = dataset[0]
     frames = np.append([first_frame], rem_frames, axis=0)
 
     # take vector norm
