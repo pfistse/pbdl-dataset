@@ -71,4 +71,4 @@ def create_preview_video(
     video.release()
 
     # TODO quick fix to convert to browser compatible video codec
-    os.system(f"ffmpeg -i tmp.mp4 -vcodec libx264 -f mp4 {path}")
+    os.system(f"ffmpeg -y -i tmp.mp4 -vcodec libx264 -f mp4 {path}")
