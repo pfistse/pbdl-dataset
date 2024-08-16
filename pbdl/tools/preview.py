@@ -30,20 +30,23 @@ def create_preview_video(
         sel_sims=[0],
         intermediate_time_steps=True,
         normalize=False,
-        disable_progress=True,  
+        disable_progress=True,
     )
-
-    if dataset.num_spatial_dims() < 2:
-        raise ValueError("Error: Dataset must have at least 2 spatial dimensions.")
 
     first_frame, _, rem_frames = dataset[0]
     frames = np.append([first_frame], rem_frames, axis=0)
 
+    # add a second spatial dimension
+    if dataset.num_spatial_dims() == 1:
+        frames_ext = np.expand_dims(frames, axis=3)
+        frames_ext = np.repeat(frames_ext, frames.shape[-1] // 2, axis=3)
+        frames = frames_ext
+
     # take vector norm
     if len(channels) > 1:
-        frames = np.sqrt(np.sum(frames[:, channels, :, :] ** 2, axis=1))
+        frames = np.sqrt(np.sum(frames[:, channels, ...] ** 2, axis=2))
     else:
-        frames = frames[:, channels[0], :, :]
+        frames = frames[:, channels[0], ...]
 
     height = frames.shape[1]
     width = frames.shape[2]
