@@ -56,8 +56,8 @@ def __load_indices__():
         global_index = json.load(f)
 
 
-def datasets():
-    return (global_index | local_index).keys()
+def index():
+    return (global_index | local_index)
 
 
 class Dataset:
