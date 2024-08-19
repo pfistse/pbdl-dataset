@@ -9,7 +9,7 @@ import cv2
 import os
 
 # local class imports
-from pbdl.loader import Dataset
+from pbdl.loader import Dataloader
 
 
 # TODO what if there are more that 2 spatial dim?
@@ -24,20 +24,20 @@ def create_preview_video(
 ):
 
     # TODO what if fps * sec too large?
-    dataset = Dataset(
+    loader = Dataloader(
         dataset_name,
-        fps * sec,
+        1,
+        step_size=1,
         sel_sims=[0],
-        intermediate_time_steps=True,
+        # intermediate_time_steps=True,
         normalize=False,
         disable_progress=True,
     )
 
-    first_frame, _, rem_frames = dataset[0]
-    frames = np.append([first_frame], rem_frames, axis=0)
+    frames = loader.get_frames_raw(0, slice(0, fps * sec))
 
     # add a second spatial dimension
-    if dataset.num_spatial_dims() == 1:
+    if loader.dataset.num_spatial_dim == 1:
         frames_ext = np.expand_dims(frames, axis=3)
         frames_ext = np.repeat(frames_ext, frames.shape[-1] // 2, axis=3)
         frames = frames_ext
@@ -75,3 +75,4 @@ def create_preview_video(
 
     # TODO quick fix to convert to browser compatible video codec
     os.system(f"ffmpeg -y -i tmp.mp4 -vcodec libx264 -f mp4 {path}")
+    os.remove("tmp.mp4")

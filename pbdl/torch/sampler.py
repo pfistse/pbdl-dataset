@@ -17,11 +17,11 @@ class ConstantBatchSampler(torch.utils.data.BatchSampler):
         self,
         dataset: pbdl.torch.phi.dataset.Dataset,
         batch_size=None,
-        group_constants=None,
+        batch_by_const=None,
     ):
         self.dataset = dataset
         self.batch_size = batch_size
-        self.group_constants = group_constants
+        self.group_constants = batch_by_const
 
         self.groups = self.group_by_constants()
 

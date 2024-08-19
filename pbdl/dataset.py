@@ -57,7 +57,11 @@ def __load_indices__():
 
 
 def index():
-    return (global_index | local_index)
+    return global_index | local_index
+
+
+def datasets():
+    return list((global_index | local_index).keys())
 
 
 class Dataset:
@@ -101,7 +105,7 @@ class Dataset:
             self.__download_dataset__(dset_name, sel_sims)
             self.__load_dataset__(dset_name)
         else:
-            suggestions = ", ".join(self.datasets())
+            suggestions = ", ".join(datasets())
             print(
                 colors.FAIL
                 + f"Dataset '{dset_name}' not found, datasets available are: {suggestions}."
@@ -376,8 +380,6 @@ class Dataset:
         const = sim.attrs["const"]
 
         input = sim[input_frame_idx]
-        if self.normalize:
-            input /= self.data_std
 
         if self.intermediate_time_steps:
             target = sim[input_frame_idx + 1 : target_frame_idx + 1]
@@ -400,9 +402,15 @@ class Dataset:
 
         return (
             input,
-            tuple(const),  # required by loader
             target,
+            tuple(const),  # required by loader
+            tuple(sim.attrs["const"]),  # needed by pbdl.torch.phi.loader
         )
+
+    def get_frames_raw(self, sim, idx):
+        slc = slice(idx, idx + 1) if isinstance(idx, int) else idx
+        sim = self.dset["sims/sim" + str(sim)]
+        return sim[slc]
 
     def iterate_sims(self):
         num_sel_sims = len(self.sel_sims) if self.sel_sims else self.num_sims
