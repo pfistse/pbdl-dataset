@@ -8,7 +8,7 @@ import phi.torch.flow as pf
 
 # local class imports
 from pbdl.torch.phi.dataset import Dataset
-from pbdl.torch.sampler import ConstantBatchSampler
+from pbdl.torch.phi.sampler import ConstantBatchSampler
 
 from pbdl.colors import colors
 
