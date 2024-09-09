@@ -9,6 +9,10 @@ from itertools import groupby
 
 import numpy as np
 from pbdl.colors import colors
+from pbdl.logging import info, success, warn, fail, corrupt
+from pbdl.utilities import get_sel_const_sim, get_meta_data
+from pbdl.normalization import StdNorm, MeanStdNorm, MinMaxNorm
+import pbdl.fetcher
 
 config_path = pkg_resources.resource_filename(__name__, "config.json")
 
@@ -21,7 +25,7 @@ except json.JSONDecodeError:
 
 
 def __load_indices__():
-    global global_index
+    global global_index 
     global local_index
 
     # load local dataset index
@@ -32,28 +36,12 @@ def __load_indices__():
         else:
             local_index = {}
     except json.JSONDecodeError:
-        print(
-            colors.WARNING
-            + f"Warning: {config['local_index_path']} has the wrong format. Ignoring local dataset index."
-            + colors.ENDC
+        warn(
+            f"{config['local_index_path']} has the wrong format. Ignoring local dataset index."
         )
         local_index = {}
 
-    # load global dataset index
-    global_index_path = pkg_resources.resource_filename(
-        __name__, config["global_index_file"]
-    )
-    try:
-        urllib.request.urlretrieve(config["global_index_url"], global_index_path)
-    except urllib.error.URLError:
-        print(
-            colors.WARNING
-            + "Warning: Failed to download global dataset index. Check your internet connection."
-            + colors.ENDC
-        )
-
-    with open(global_index_path, "r") as f:
-        global_index = json.load(f)
+    global_index = pbdl.fetcher.fetch_index(config)
 
 
 def index():
@@ -70,8 +58,9 @@ class Dataset:
         dset_name,
         time_steps,
         intermediate_time_steps=False,
-        normalize=True,
+        normalize=None,
         sel_sims=None,  # if None, all simulations are loaded
+        sel_const=None,  # if None, all constants are returned
         trim_start=0,
         trim_end=0,
         step_size=1,
@@ -85,266 +74,85 @@ class Dataset:
         self.step_size = step_size
         self.intermediate_time_steps = intermediate_time_steps
         self.normalize = normalize
-        # self.solver = solver
         self.sel_sims = sel_sims
+        self.sel_const = sel_const
         self.disable_progress = disable_progress
 
         config.update(kwargs)
         __load_indices__()
 
-        # TODO get number of simulations from url
-
         if dset_name in local_index.keys():
-            self.__load_dataset__(
-                dset_name,
-                dset_file=os.path.join(
-                    config["local_datasets_dir"], local_index[dset_name]["path"]
-                ),
+            dset_file = os.path.join(
+                config["local_datasets_dir"], local_index[dset_name]
             )
+            self.__load_dataset__(dset_name, dset_file)
         elif dset_name in global_index.keys():
-            self.__download_dataset__(dset_name, sel_sims)
-            self.__load_dataset__(dset_name)
+            # self.__download_dataset__(dset_name, sel_sims)
+            pbdl.fetcher.dl_parts(dset_name, config, sims=sel_sims)
+
+            dset_file = os.path.join(
+                config["global_dataset_dir"], dset_name + config["dataset_ext"]
+            )
+            self.__load_dataset__(dset_name, dset_file)
         else:
             suggestions = ", ".join(datasets())
-            print(
-                colors.FAIL
-                + f"Dataset '{dset_name}' not found, datasets available are: {suggestions}."
-                + colors.ENDC
+            fail(
+                f"Dataset '{dset_name}' not found, datasets available are: {suggestions}."
             )
             sys.exit(0)
 
-        print(
-            colors.OKCYAN
-            + colors.BOLD
-            + f"Successfully loaded { self.dset_name } with { self.num_sims } simulations "
+        success(
+            f"Loaded { self.dset_name } with { self.num_sims } simulations "
             + (f"({len(self.sel_sims)} selected) " if self.sel_sims else "")
             + f"and {self.samples_per_sim} samples each."
-            + colors.ENDC
         )
 
         if self.normalize:
-            self.__prepare_norm_data__()
+            self.normalize.prepare(self.dset, self.sel_const)
 
-    def __download_dataset__(self, dset_name, sel_sims=None):
-        url = global_index[dset_name]["url"]
+    def __load_dataset__(self, dset_name, dset_file):
+        """Load hdf5 dataset, setting attributes of the dataset instance, doing basic validation checks."""
 
-        os.makedirs(os.path.dirname(config["dataset_dir"]), exist_ok=True)
-
-        # partitioned dataset
-        if "num_part" in global_index[dset_name]:
-
-            num_part = global_index[dset_name]["num_part"]
-
-            dset_file = os.path.join(
-                config["dataset_dir"], dset_name + config["dataset_ext"]
-            )
-
-            if not sel_sims:
-                sel_sims = range(num_part)
-
-            with h5py.File(dset_file, "a") as f:
-
-                added_sim = False
-                # check if simulations are cached
-                for i, s in enumerate(sel_sims):
-                    if not self.disable_progress:
-                        print_download_progress(
-                            i,
-                            1,
-                            len(sel_sims),
-                            message=f"downloading sim {s}",
-                        )
-
-                    if "sims/sim" + str(s) not in f:
-                        added_sim = True
-
-                        sim_url = url + "/sim" + str(s) + config["dataset_ext"]
-
-                        with urllib.request.urlopen(sim_url) as response:
-                            with h5py.File(io.BytesIO(response.read()), "r") as f_sim:
-
-                                if len(f_sim) != 1:
-                                    raise ValueError(
-                                        f"A partition file must contain exactly one simulation."
-                                    )
-
-                                sim = f.create_dataset(
-                                    "sims/sim" + str(s), data=f_sim["sims/sim0"]
-                                )
-                                sim.attrs["const"] = f_sim["sims/sim0"].attrs["const"]
-                if not self.disable_progress:
-                    print_download_progress(
-                        len(sel_sims), 1, len(sel_sims), message="download completed"
-                    )
-
-                # normalization data does not incorporate all sims
-                if added_sim:
-                    f.pop("norm_data_std", None)
-                    f.pop("norm_const_mean", None)
-                    f.pop("norm_const_std", None)
-
-        # single-file dataset
-        else:
-
-            dset_file = os.path.join(
-                config["dataset_dir"], dset_name + config["dataset_ext"]
-            )
-
-            if not os.path.isfile(dset_file):
-                # print(f"Dataset '{dset_name}' not cached. Downloading...")
-                urllib.request.urlretrieve(
-                    url,
-                    dset_file,
-                    reporthook=(
-                        None if self.disable_progress else print_download_progress
-                    ),
-                )
-
-    def __load_dataset__(self, dset_name, dset_file=None):
+        # load dataset
         self.dset_name = dset_name
+        self.dset = h5py.File(dset_file, "r+")
 
-        if dset_name in local_index.keys():
-            self.fields = local_index[dset_name]["fields"]
-            self.field_desc = local_index[dset_name]["field_desc"]
-            self.const_desc = local_index[dset_name]["const_desc"]
-        elif dset_name in global_index.keys():
-            self.fields = global_index[dset_name]["fields"]
-            self.field_desc = global_index[dset_name]["field_desc"]
-            self.const_desc = global_index[dset_name]["const_desc"]
-
-        if not dset_file:
-            dset_file = os.path.join(
-                config["dataset_dir"], dset_name + config["dataset_ext"]
-            )
-
-        self.dset = h5py.File(dset_file, "r")
-
-        first_sim_name = next(iter(self.dset["sims/"]))
-        first_sim = self.dset["sims/" + first_sim_name]
-        self.sim_shape = first_sim.shape
-        self.const_shape = first_sim.attrs["const"].shape
-
-        # basic validation checks on shape
-        if len(self.sim_shape) < 3:
-            raise ValueError(
-                "Simulations data must have shape (frames, fields, spatial dim [...])."
-            )
-
-        if len(self.fields) != self.sim_shape[1]:
-            raise ValueError(
-                f"Inconsistent number of fields between metadata ({len(self.fields) }) and simulations ({ self.sim_shape[1]})."
-            )
-
-        if len(self.const_shape) != 1:
-            raise ValueError(
-                f"The shape of the constant array must have exactly one dimension."
-            )
-
-        # shape must be consistent through all sims
-        for sim in self.dset["sims/"]:
-            if (self.dset["sims/" + sim].shape) != self.sim_shape:
-                raise ValueError(
-                    f"The shape of all simulations must be consistent ({sim}.shape does not match {first_sim_name}.shape)."
-                )
-            if (self.dset["sims/" + sim].attrs["const"].shape) != self.const_shape:
-                raise ValueError(
-                    f"The shape of all constants must be consistent ({sim}.const.shape does not match {first_sim_name}.const.shape)."
-                )
-
-        # set attributes
-        self.num_sims = len(self.dset["sims/"])
-        self.num_frames, self.num_fields, *_ = self.sim_shape
-        self.num_spatial_dim = (
-            len(self.sim_shape) - 2
-        )  # subtract 2 for frame and field dimension
-        self.num_const = len(self.const_shape)
+        # load metadata and setting attributes
+        meta = get_meta_data(self.dset)
+        for key, value in meta.items():
+            setattr(self, key, value)
 
         self.samples_per_sim = (
             self.num_frames - self.time_steps - self.trim_start - self.trim_end
         ) // self.step_size
 
-    def __prepare_norm_data__(self):
+        # basic validation checks on shape
+        if len(self.sim_shape) < 3:
+            corrupt(
+                "Simulations data must have shape (frames, fields, spatial dim [...])."
+            )
+            sys.exit(0)
 
-        if not all(
-            key in self.dset
-            for key in ["norm_data_std", "norm_const_mean", "norm_const_std"]
-        ):
-            # calculate norm
-            print(
-                "No precomputed normalization data found (or not complete). Calculating data..."
+        if len(self.fields_scheme) != self.sim_shape[1]:
+            raise ValueError(
+                f"Inconsistent number of fields between metadata ({len(self.fields_scheme) }) and simulations ({ self.sim_shape[1]})."
             )
 
-            field_groups = ["".join(g) for _, g in groupby(self.fields)]
-
-            groups_std = []
-            groups_std_slim = [0] * len(field_groups)
-            const_stacked = []
-            idx = 0
-
-            # sequential loading of simulations
-            for sim in self.dset["sims/"]:
-
-                # calculate normalization constants by field
-                for group_idx, group in enumerate(field_groups):
-                    group_field = self.dset["sims/" + sim][
-                        :, idx : (idx + len(group)), ...
-                    ]
-
-                    # vector norm
-                    group_norm = np.linalg.norm(group_field, axis=1, keepdims=True)
-
-                    # axes over which to compute the standard deviation (all axes except fields)
-                    axes = (0, 1) + tuple(range(2, 2 + self.num_spatial_dim))
-
-                    groups_std_slim[group_idx] += np.std(
-                        group_norm, axis=axes, keepdims=True
-                    )[
-                        0
-                    ]  # drop frame dimension
-
-                    idx += len(group)
-
-                const_stacked.append(self.dset["sims/" + sim].attrs["const"])
-
-            # TODO overall std is calculated by averaging the std of all sims, efficient but mathematically not correct
-            for group_idx, group in enumerate(field_groups):
-                groups_std.append(
-                    np.broadcast_to(
-                        groups_std_slim[group_idx] / self.num_sims,
-                        (len(group),) + (1,) * self.num_spatial_dim,
-                    )
+        for sim in self.dset["sims/"]:
+            # shape must be consistent through all sims
+            if (self.dset["sims/" + sim].shape) != self.sim_shape:
+                corrupt(
+                    f"The shape of all simulations must be consistent: Shape of first sim and sim {sim} do not match)."
                 )
+                sys.exit(0)
 
-            dset_file = self.dset.filename
-            self.dset.close()
-
-            with h5py.File(dset_file, "r+") as f:
-                f["norm_data_std"] = np.concatenate(groups_std, axis=0)
-                f["norm_const_mean"] = np.mean(const_stacked, axis=0, keepdims=False)
-                f["norm_const_std"] = np.std(const_stacked, axis=0, keepdims=False)
-
-            self.dset = h5py.File(dset_file, "r")
-
-        # load normalization data
-        self.data_std = self.dset["norm_data_std"][
-            ()
-        ]  # [()] reads the entire array TODO
-        self.const_mean = self.dset["norm_const_mean"][()]
-        self.const_std = self.dset["norm_const_std"][()]
-
-        # do basic checks on shape
-        if self.data_std.shape[0] != self.sim_shape[1]:
-            raise ValueError(
-                "Inconsistent number of fields between normalization data and simulation data."
-            )
-
-        if self.const_mean.shape[0] != self.const_shape[0]:
-            raise ValueError(
-                "Mean data of constants does not match shape of constants."
-            )
-
-        if self.const_std.shape[0] != self.const_shape[0]:
-            raise ValueError("Std data of constants does not match shape of constants.")
+            # all sims must define the declared constants
+            missing = set(self.const) - set(self.dset["sims/" + sim].attrs.keys())
+            if missing:
+                corrupt(
+                    f"Simulation {sim} does not define all declared constants: {missing}."
+                )
+                sys.exit(0)
 
     def __len__(self):
         if self.sel_sims:
@@ -377,7 +185,7 @@ class Dataset:
         target_frame_idx = input_frame_idx + self.time_steps
 
         sim = self.dset["sims/sim" + str(sim_idx)]
-        const = sim.attrs["const"]
+        const = get_sel_const_sim(self.dset, sim_idx, self.sel_const)
 
         input = sim[input_frame_idx]
 
@@ -386,31 +194,37 @@ class Dataset:
         else:
             target = sim[target_frame_idx]
 
+        const_nnorm = const
+
         # normalize
         if self.normalize:
-            input /= self.data_std
-            target /= (
-                self.data_std[None, :, :]  # add frame dimension
-                if self.intermediate_time_steps
-                else self.data_std
-            )
+            input = self.normalize.normalize_data(input)
 
-            if (abs(self.const_std) < 10e-10).any():  # TODO
-                const = np.zeros_like(const)
+            if self.intermediate_time_steps:
+                target = np.array(
+                    [
+                        self.normalize.normalize_data(frame) for frame in target
+                    ] 
+                )
             else:
-                const = (const - self.const_mean) / self.const_std
+                target = self.normalize.normalize_data(target)
+
+            const = self.normalize.normalize_const(const)
 
         return (
             input,
             target,
             tuple(const),  # required by loader
-            tuple(sim.attrs["const"]),  # needed by pbdl.torch.phi.loader
+            tuple(const_nnorm),  # needed by pbdl.torch.phi.loader
         )
 
     def get_frames_raw(self, sim, idx):
         slc = slice(idx, idx + 1) if isinstance(idx, int) else idx
         sim = self.dset["sims/sim" + str(sim)]
         return sim[slc]
+
+    def get_h5_raw(self):
+        return self.dset
 
     def iterate_sims(self):
         num_sel_sims = len(self.sel_sims) if self.sel_sims else self.num_sims
@@ -419,41 +233,5 @@ class Dataset:
 
     def num_spatial_dims(self):
         return self.num_spatial_dim
-
-
-def print_download_progress(count, block_size, total_size, message=None):
-    progress = count * block_size
-    percent = int(progress * 100 / total_size)
-    bar_length = 50
-    bar = (
-        "━" * int(percent / 2)
-        + colors.DARKGREY
-        + "━" * (bar_length - int(percent / 2))
-        + colors.OKBLUE
-    )
-
-    def format_size(size):
-        for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if size < 1024:
-                return f"{size:.2f} {unit}"
-            size /= 1024
-        return f"{size:.2f} PB"
-
-    downloaded_str = format_size(progress)
-    total_str = format_size(total_size)
-
-    sys.stdout.write(
-        colors.OKBLUE
-        + "\r\033[K"
-        + (message if message else f"{downloaded_str} / {total_str}")
-        + f"\t {bar} {percent}%"
-        + colors.ENDC
-    )
-    sys.stdout.flush()
-
-    if progress == total_size:
-        sys.stdout.write("\n")
-        sys.stdout.flush()
-
 
 __load_indices__()

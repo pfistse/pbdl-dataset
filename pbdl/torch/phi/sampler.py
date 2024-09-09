@@ -10,6 +10,7 @@ import random
 
 # local class imports
 import pbdl.torch.phi.dataset
+from pbdl.logging import info, success, warn, fail, corrupt
 
 
 class ConstantBatchSampler(torch.utils.data.BatchSampler):
@@ -26,7 +27,7 @@ class ConstantBatchSampler(torch.utils.data.BatchSampler):
         self.groups = self.group_by_constants()
 
     def group_by_constants(self):
-        print("Prepare constant batch sampling...")
+        info("Prepare constant batch sampling...")
 
         groups = {}
         for sim_range in self.dataset.iterate_sims():

@@ -8,6 +8,7 @@ from multiprocessing import Pool
 
 # local class imports
 from pbdl.dataset import Dataset
+from pbdl.normalization import StdNorm, MeanStdNorm, MinMaxNorm
 
 
 def _collate_fn_(batch):

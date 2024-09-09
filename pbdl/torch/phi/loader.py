@@ -9,6 +9,7 @@ import phi.torch.flow as pf
 # local class imports
 from pbdl.torch.phi.dataset import Dataset
 from pbdl.torch.phi.sampler import ConstantBatchSampler
+from pbdl.normalization import StdNorm, MeanStdNorm, MinMaxNorm
 
 from pbdl.colors import colors
 
@@ -155,10 +156,10 @@ class Dataloader(torch.utils.data.DataLoader):
         spatial_dim = ",".join(PHIFLOW_SPATIAL_DIM[0 : self.dataset.num_spatial_dim])
 
         # if necessary, cut off constant layers
-        data = data[:, 0 : self.dataset.num_fields, ...]
+        data = data[:, 0 : self.dataset.num_sca_fields, ...]
 
         if self.dataset.normalize:
-            data = data * torch.tensor(self.dataset.data_std)
+            data = self.dataset.normalize.normalize_data_rev(data)
 
         return pf.tensor(
             data,
@@ -174,7 +175,7 @@ class Dataloader(torch.utils.data.DataLoader):
         data = data.native(["b", "time", spatial_dim])
 
         if self.dataset.normalize:
-            data = data / torch.tensor(self.dataset.data_std)
+            data = self.dataset.normalize.normalize_data(data)
 
         return data
 
@@ -185,7 +186,7 @@ class Dataloader(torch.utils.data.DataLoader):
                 data,
                 like[
                     :,
-                    self.dataset.num_fields : self.dataset.num_fields
+                    self.dataset.num_sca_fields : self.dataset.num_sca_fields
                     + self.dataset.num_const,
                     ...,
                 ],
