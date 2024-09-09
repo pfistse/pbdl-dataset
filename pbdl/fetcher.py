@@ -52,7 +52,7 @@ def dl_parts_from_huggingface(
     url_ds = f"https://huggingface.co/datasets/{repo_id}/resolve/main/{dataset}"
 
     modified = False
-    with h5py.File(dest, "r+") as f:
+    with h5py.File(dest, "a") as f:
         for i, s in enumerate(sims):
             if prog_hook:
                 prog_hook(
