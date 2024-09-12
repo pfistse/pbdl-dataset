@@ -108,14 +108,17 @@ class Dataset:
         )
 
         if self.normalize:
+            self._change_file_mode("r+")
             self.normalize.prepare(self.dset, self.sel_const)
+            self._change_file_mode("r")
 
     def __load_dataset__(self, dset_name, dset_file):
         """Load hdf5 dataset, setting attributes of the dataset instance, doing basic validation checks."""
 
         # load dataset
         self.dset_name = dset_name
-        self.dset = h5py.File(dset_file, "r", swmr=True)
+        self.dset_file = dset_file
+        self.dset = h5py.File(dset_file, "r")
 
         # load metadata and setting attributes
         meta = get_meta_data(self.dset)
@@ -215,6 +218,13 @@ class Dataset:
             tuple(const),  # required by loader
             tuple(const_nnorm),  # needed by pbdl.torch.phi.loader
         )
+
+    def _change_file_mode(self, mode):
+        if self.dset:
+            self.dset.close()
+        
+        self.dset = h5py.File(self.dset_file, mode)
+
 
     def get_frames_raw(self, sim, idx):
         slc = slice(idx, idx + 1) if isinstance(idx, int) else idx
