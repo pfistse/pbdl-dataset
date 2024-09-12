@@ -25,7 +25,7 @@ except json.JSONDecodeError:
 
 
 def __load_indices__():
-    global global_index 
+    global global_index
     global local_index
 
     # load local dataset index
@@ -115,7 +115,7 @@ class Dataset:
 
         # load dataset
         self.dset_name = dset_name
-        self.dset = h5py.File(dset_file, "r+")
+        self.dset = h5py.File(dset_file, "r", swmr=True)
 
         # load metadata and setting attributes
         meta = get_meta_data(self.dset)
@@ -202,9 +202,7 @@ class Dataset:
 
             if self.intermediate_time_steps:
                 target = np.array(
-                    [
-                        self.normalize.normalize_data(frame) for frame in target
-                    ] 
+                    [self.normalize.normalize_data(frame) for frame in target]
                 )
             else:
                 target = self.normalize.normalize_data(target)
@@ -233,5 +231,6 @@ class Dataset:
 
     def num_spatial_dims(self):
         return self.num_spatial_dim
+
 
 __load_indices__()

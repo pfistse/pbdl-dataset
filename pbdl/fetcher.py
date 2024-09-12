@@ -11,19 +11,19 @@ import pkg_resources
 import sys
 
 
-def dl_parts(dataset: str, config, sims: list[int] = None):
+def dl_parts(dset: str, config, sims: list[int] = None):
     os.makedirs(config["global_dataset_dir"], exist_ok=True)
 
-    dest = os.path.join(config["global_dataset_dir"], dataset + config["dataset_ext"])
+    dest = os.path.join(config["global_dataset_dir"], dset + config["dataset_ext"])
 
     # TODO dispatching
     modified = dl_parts_from_huggingface(
-        dataset, dest, config, sims, prog_hook=print_download_progress
+        dset, dest, config, sims, prog_hook=print_download_progress
     )
 
     # normalization data will not incorporate all sims after download
     if modified:
-        with h5py.File(dest, "r+") as dset:  # TODO a or r+
+        with h5py.File(dest, "r+") as dset:
             norm.clear_cache(dset)
 
 
