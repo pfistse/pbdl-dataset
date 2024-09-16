@@ -35,7 +35,7 @@ def _collate_fn_(batch):
                             item[0][0], constant
                         )  # inflate constants to constant layers
                     ]
-                    for constant in item[1]
+                    for constant in item[2]
                 ],
                 axis=0,
             )
@@ -44,7 +44,7 @@ def _collate_fn_(batch):
         axis=0,
     )
 
-    targets = np.stack([item[2] for item in batch])
+    targets = np.stack([item[1] for item in batch])
 
     return (torch.tensor(data), torch.tensor(targets))
 
