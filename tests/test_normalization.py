@@ -2,19 +2,21 @@ import unittest
 import numpy as np
 import numpy.testing as npt
 from pbdl.loader import *
-import tests.setup
+import tests.setup_random
 import h5py
+import os
 
 
 class TestNormalization(unittest.TestCase):
 
     def setUp(self):
-        np.random.seed(1)
-        tests.setup.setup()
+        tests.setup_random.setup()
         self.rand_dset = h5py.File("tests/datasets/random.hdf5", "r+")
 
     def tearDown(self):
         self.rand_dset.close()
+        tests.setup_random.teardown()
+
 
     def test_std_norm(self):
         loader = Dataloader(

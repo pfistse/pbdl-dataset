@@ -10,7 +10,7 @@ from itertools import groupby
 import numpy as np
 from pbdl.colors import colors
 from pbdl.logging import info, success, warn, fail, corrupt
-from pbdl.utilities import get_sel_const_sim, get_meta_data
+from pbdl.utilities import get_sel_const_sim, get_meta_data, scan_local_dset_dir
 from pbdl.normalization import StdNorm, MeanStdNorm, MinMaxNorm
 import pbdl.fetcher
 
@@ -24,23 +24,12 @@ except json.JSONDecodeError:
     raise ValueError("Invalid configuration file.")
 
 
-def __load_indices__():
-    global global_index
+def _load_index():
     global local_index
+    global global_index
 
     # load local dataset index
-    try:
-        if os.path.isfile(config["local_index_path"]):
-            with open(config["local_index_path"], "r") as f:
-                local_index = json.load(f)
-        else:
-            local_index = {}
-    except json.JSONDecodeError:
-        warn(
-            f"{config['local_index_path']} has the wrong format. Ignoring local dataset index."
-        )
-        local_index = {}
-
+    local_index = scan_local_dset_dir(config)
     global_index = pbdl.fetcher.fetch_index(config)
 
 
@@ -79,11 +68,11 @@ class Dataset:
         self.disable_progress = disable_progress
 
         config.update(kwargs)
-        __load_indices__()
+        _load_index()
 
         if dset_name in local_index.keys():
             dset_file = os.path.join(
-                config["local_datasets_dir"], local_index[dset_name]
+                config["local_datasets_dir"], dset_name + config["dataset_ext"]
             )
             self.__load_dataset__(dset_name, dset_file)
         elif dset_name in global_index.keys():
@@ -222,9 +211,8 @@ class Dataset:
     def _change_file_mode(self, mode):
         if self.dset:
             self.dset.close()
-        
-        self.dset = h5py.File(self.dset_file, mode)
 
+        self.dset = h5py.File(self.dset_file, mode)
 
     def get_frames_raw(self, sim, idx):
         slc = slice(idx, idx + 1) if isinstance(idx, int) else idx
@@ -243,4 +231,4 @@ class Dataset:
         return self.num_spatial_dim
 
 
-__load_indices__()
+_load_index()

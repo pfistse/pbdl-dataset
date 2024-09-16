@@ -10,6 +10,7 @@ meta_all = {
     "Dt": 0.01,
 }
 
+
 def setup():
     np.random.seed(1)
 
@@ -25,3 +26,7 @@ def setup():
 
         for key, value in meta_all.items():
             f["sims/"].attrs[key] = value
+
+
+def teardown():
+    os.remove("tests/datasets/random.hdf5")
